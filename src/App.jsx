@@ -6,6 +6,7 @@ import Today from './pages/Today'
 import Week from './pages/Week'
 import Events from './pages/Events'
 import Hunting from './pages/Hunting'
+import Tracker from './pages/Tracker'
 import Admin from './pages/Admin'
 import Layout from './components/layout/Layout'
 import './index.css'
@@ -42,6 +43,7 @@ export default function App() {
           <Route path="today" element={<Today session={session} />} />
           <Route path="week" element={<Week session={session} />} />
           <Route path="events" element={<Events session={session} />} />
+          <Route path="tracker" element={<Tracker session={session} />} />
           <Route path="hunting" element={<Hunting session={session} />} />
           <Route path="admin" element={<Admin session={session} />} />
         </Route>
