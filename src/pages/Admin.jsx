@@ -427,24 +427,7 @@ export default function Admin({ session }) {
 
         {/* ── SERVICE ── */}
         {tab === 'service' && (
-          <>
-            <button className="btn btn-primary" style={{marginBottom:12}}>+ Flag equipment for service</button>
-            {equipment.length === 0 ? (
-              <div style={{textAlign:'center',padding:'32px 0',color:'#888',fontSize:13}}>No service records yet</div>
-            ) : equipment.map(e => (
-              <div key={e.id} style={{background:'#fff',border:'0.5px solid #ddd',borderRadius:8,padding:'11px 12px',marginBottom:7}}>
-                <div style={{display:'flex',alignItems:'center',gap:8}}>
-                  <div style={{flex:1}}>
-                    <div style={{fontSize:13,fontWeight:500}}>{e.asset?.name || '—'}</div>
-                    <div style={{fontSize:11,color:'#888',marginTop:2}}>{e.service_description || 'Service needed'} · {e.assigned?.full_name || 'Unassigned'}</div>
-                  </div>
-                  <span className={`badge ${e.completed?'badge-done':'badge-warn'}`}>
-                    {e.completed?'Complete':'Pending'}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </>
+          <ServiceTab session={session} equipment={equipment} onRefresh={loadAll} />
         )}
 
         {/* ── AUDIT ── */}
@@ -467,5 +450,263 @@ export default function Admin({ session }) {
         )}
       </div>
     </div>
+  )
+}
+
+const EQUIPMENT_LIST = [
+  'Ranger EV','Ranger Work UTV','Honda 2-seater','Honda 6-seater',
+  'Can-Am','Toyota Tundra','Large John Deere','Small John Deere',
+  'Cat Skid Steer','Toy Hauler','RV',"Jake's RV",
+  'Two-man Kayak','Pond Prowler','Twin Troller'
+]
+
+function ServiceTab({ session, equipment, onRefresh }) {
+  const [showForm, setShowForm] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [expandedId, setExpandedId] = useState(null)
+  const [updates, setUpdates] = useState({}) // keyed by service id
+  const [updateText, setUpdateText] = useState({})
+  const [returnDate, setReturnDate] = useState({})
+  const [form, setForm] = useState({
+    asset: EQUIPMENT_LIST[0],
+    service_description: '',
+    assigned_to_name: 'Unassigned',
+    estimated_return_date: ''
+  })
+
+  async function loadUpdates(serviceId) {
+    const { data } = await supabase
+      .from('equipment_service_updates')
+      .select('*, created_profile:profiles!equipment_service_updates_created_by_fkey(full_name)')
+      .eq('service_id', serviceId)
+      .order('created_at', { ascending: false })
+    if (data) setUpdates(prev => ({ ...prev, [serviceId]: data }))
+  }
+
+  async function toggleExpand(id) {
+    if (expandedId === id) { setExpandedId(null); return }
+    setExpandedId(id)
+    await loadUpdates(id)
+  }
+
+  async function saveService() {
+    if (!form.service_description.trim()) return
+    setSaving(true)
+    const { data: assetData } = await supabase
+      .from('assets').select('id').ilike('name', form.asset).single()
+    await supabase.from('equipment_service').insert({
+      asset_id: assetData?.id || null,
+      service_description: form.service_description,
+      assigned_to_name: form.assigned_to_name,
+      estimated_return_date: form.estimated_return_date || null,
+      service_needed: true,
+      completed: false,
+      created_by: session.user.id
+    })
+    await supabase.from('audit_log').insert({
+      actor_id: session.user.id,
+      action: 'equipment_service_flagged',
+      entity_type: 'equipment_service',
+      diff_json: { asset: form.asset, description: form.service_description }
+    })
+    setForm({ asset: EQUIPMENT_LIST[0], service_description: '', assigned_to_name: 'Unassigned', estimated_return_date: '' })
+    setSaving(false)
+    setSaved(true)
+    setShowForm(false)
+    setTimeout(() => setSaved(false), 3000)
+    onRefresh()
+  }
+
+  async function addUpdate(serviceId) {
+    const text = updateText[serviceId]?.trim()
+    if (!text) return
+    await supabase.from('equipment_service_updates').insert({
+      service_id: serviceId,
+      update_text: text,
+      created_by: session.user.id
+    })
+    setUpdateText(prev => ({ ...prev, [serviceId]: '' }))
+    await loadUpdates(serviceId)
+  }
+
+  async function saveReturnDate(serviceId) {
+    const date = returnDate[serviceId]
+    if (!date) return
+    await supabase.from('equipment_service').update({ estimated_return_date: date }).eq('id', serviceId)
+    onRefresh()
+  }
+
+  async function markComplete(id) {
+    await supabase.from('equipment_service').update({
+      completed: true,
+      completed_by: session.user.id,
+      completed_at: new Date().toISOString()
+    }).eq('id', id)
+    setExpandedId(null)
+    onRefresh()
+  }
+
+  const pending = equipment.filter(e => !e.completed)
+  const done = equipment.filter(e => e.completed)
+
+  return (
+    <>
+      {saved && (
+        <div style={{background:'#EAF3DE',borderRadius:8,padding:10,marginBottom:10,fontSize:12,color:'#3B6D11'}}>
+          ✓ Equipment flagged for service
+        </div>
+      )}
+
+      <button className="btn btn-primary" style={{marginBottom:12}} onClick={() => setShowForm(!showForm)}>
+        {showForm ? 'Cancel' : '+ Flag equipment for service'}
+      </button>
+
+      {showForm && (
+        <div style={{background:'#f8f8f8',borderRadius:8,padding:12,marginBottom:12}}>
+          <div style={{fontSize:12,fontWeight:500,marginBottom:10}}>Flag equipment for service</div>
+          <div className="form-group">
+            <label className="form-label">Equipment</label>
+            <select className="form-input" value={form.asset} onChange={e=>setForm({...form,asset:e.target.value})}>
+              {EQUIPMENT_LIST.map(a => <option key={a}>{a}</option>)}
+            </select>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Describe the issue</label>
+            <textarea className="form-input" rows={3} value={form.service_description}
+              onChange={e=>setForm({...form,service_description:e.target.value})}
+              placeholder="e.g. Oil change overdue, making clicking sound when turning…"
+              style={{resize:'none'}}/>
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
+            <div className="form-group" style={{marginBottom:0}}>
+              <label className="form-label">Assign to</label>
+              <select className="form-input" value={form.assigned_to_name} onChange={e=>setForm({...form,assigned_to_name:e.target.value})}>
+                {['Unassigned','Lain','Clare','Juan','Lane','Scott','Jacob','Trace','Garrett','Delaney','Jake'].map(c => <option key={c}>{c}</option>)}
+              </select>
+            </div>
+            <div className="form-group" style={{marginBottom:0}}>
+              <label className="form-label">Est. return to service</label>
+              <input className="form-input" type="date" value={form.estimated_return_date}
+                onChange={e=>setForm({...form,estimated_return_date:e.target.value})}/>
+            </div>
+          </div>
+          <button className="btn btn-primary" style={{marginBottom:0}} onClick={saveService} disabled={saving||!form.service_description.trim()}>
+            {saving ? 'Saving…' : 'Flag for service'}
+          </button>
+        </div>
+      )}
+
+      {pending.length > 0 && (
+        <>
+          <div className="section-label">Needs service ({pending.length})</div>
+          {pending.map(e => (
+            <div key={e.id} style={{background:'#fff',border:'0.5px solid #ddd',borderRadius:8,marginBottom:8,overflow:'hidden'}}>
+              {/* Header row */}
+              <div style={{padding:'11px 12px',cursor:'pointer'}} onClick={() => toggleExpand(e.id)}>
+                <div style={{display:'flex',alignItems:'flex-start',gap:8}}>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:13,fontWeight:500,marginBottom:3}}>{e.asset?.name || '—'}</div>
+                    <div style={{fontSize:12,color:'#555',marginBottom:4}}>{e.service_description}</div>
+                    <div style={{display:'flex',gap:8,flexWrap:'wrap',fontSize:11,color:'#888'}}>
+                      <span>👤 {e.assigned_to_name || 'Unassigned'}</span>
+                      {e.estimated_return_date && (
+                        <span>📅 Est. return: {new Date(e.estimated_return_date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</span>
+                      )}
+                      <span>Flagged {e.created_at ? new Date(e.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : ''}</span>
+                    </div>
+                  </div>
+                  <div style={{display:'flex',flexDirection:'column',gap:5,alignItems:'flex-end',flexShrink:0}}>
+                    <span className="badge badge-warn">Pending</span>
+                    <span style={{fontSize:10,color:'#aaa'}}>{expandedId===e.id?'▲ Less':'▼ Details'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Expanded detail */}
+              {expandedId === e.id && (
+                <div style={{borderTop:'0.5px solid #f0f0f0',padding:'10px 12px',background:'#fafafa'}}>
+
+                  {/* Update return date */}
+                  <div style={{marginBottom:10}}>
+                    <label className="form-label">Update estimated return date</label>
+                    <div style={{display:'flex',gap:8}}>
+                      <input className="form-input" type="date" style={{flex:1}}
+                        value={returnDate[e.id] || e.estimated_return_date || ''}
+                        onChange={ev => setReturnDate(prev => ({...prev,[e.id]:ev.target.value}))}/>
+                      <button onClick={() => saveReturnDate(e.id)} style={{
+                        padding:'9px 12px',borderRadius:8,border:'none',background:'#1A4F8A',
+                        color:'#fff',fontSize:12,cursor:'pointer',fontFamily:'inherit',fontWeight:500,flexShrink:0
+                      }}>Save</button>
+                    </div>
+                  </div>
+
+                  {/* Updates feed */}
+                  <div style={{marginBottom:10}}>
+                    <label className="form-label">Updates</label>
+                    {(updates[e.id] || []).length === 0 ? (
+                      <p style={{fontSize:12,color:'#aaa',padding:'6px 0'}}>No updates yet — add one below.</p>
+                    ) : (
+                      <div style={{marginBottom:8}}>
+                        {(updates[e.id] || []).map(u => (
+                          <div key={u.id} style={{padding:'7px 0',borderBottom:'0.5px solid #f0f0f0'}}>
+                            <div style={{fontSize:12,color:'#333'}}>{u.update_text}</div>
+                            <div style={{fontSize:10,color:'#aaa',marginTop:2}}>
+                              {u.created_profile?.full_name || 'Unknown'} · {new Date(u.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric'})} {new Date(u.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div style={{display:'flex',gap:8}}>
+                      <input className="form-input" style={{flex:1}}
+                        value={updateText[e.id] || ''}
+                        onChange={ev => setUpdateText(prev => ({...prev,[e.id]:ev.target.value}))}
+                        placeholder="Add an update…"
+                        onKeyDown={ev => ev.key==='Enter' && addUpdate(e.id)}/>
+                      <button onClick={() => addUpdate(e.id)} style={{
+                        padding:'9px 12px',borderRadius:8,border:'none',background:'#1A4F8A',
+                        color:'#fff',fontSize:12,cursor:'pointer',fontFamily:'inherit',fontWeight:500,flexShrink:0
+                      }}>Post</button>
+                    </div>
+                  </div>
+
+                  {/* Mark complete */}
+                  <button onClick={() => markComplete(e.id)} className="btn btn-success" style={{marginBottom:0}}>
+                    ✓ Mark service complete
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </>
+      )}
+
+      {done.length > 0 && (
+        <>
+          <div className="section-label">Completed</div>
+          {done.slice(0,5).map(e => (
+            <div key={e.id} style={{background:'#fff',border:'0.5px solid #ddd',borderRadius:8,padding:'11px 12px',marginBottom:7,opacity:0.6}}>
+              <div style={{display:'flex',alignItems:'center',gap:8}}>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:13,fontWeight:500,marginBottom:2}}>{e.asset?.name || '—'}</div>
+                  <div style={{fontSize:11,color:'#888'}}>{e.service_description}</div>
+                  {e.estimated_return_date && <div style={{fontSize:10,color:'#aaa',marginTop:2}}>Returned: {new Date(e.estimated_return_date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</div>}
+                </div>
+                <span className="badge badge-done">Done</span>
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+
+      {pending.length === 0 && done.length === 0 && (
+        <div style={{textAlign:'center',padding:'32px 0'}}>
+          <p style={{fontSize:28,marginBottom:8}}>🔧</p>
+          <p style={{fontSize:14,fontWeight:600,color:'#333',marginBottom:4}}>No service records</p>
+          <p style={{fontSize:12,color:'#888'}}>Flag equipment above when service is needed.</p>
+        </div>
+      )}
+    </>
   )
 }
