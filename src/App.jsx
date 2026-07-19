@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { supabase } from './lib/supabase'
 import Login from './pages/Login'
+import ResetPassword from './pages/ResetPassword'
 import Today from './pages/Today'
 import Week from './pages/Week'
 import Events from './pages/Events'
@@ -14,15 +15,31 @@ import './index.css'
 export default function App() {
   const [session, setSession] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [isReset, setIsReset] = useState(false)
 
   useEffect(() => {
+    // Check if this is a password reset callback
+    const hash = window.location.hash
+    if (hash && hash.includes('type=recovery')) {
+      setIsReset(true)
+      setLoading(false)
+      return
+    }
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
       setLoading(false)
     })
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsReset(true)
+        setLoading(false)
+        return
+      }
       setSession(session)
     })
+
     return () => subscription.unsubscribe()
   }, [])
 
@@ -32,6 +49,8 @@ export default function App() {
       <p style={{color:'#666',fontSize:14}}>Loading Alligator Landing…</p>
     </div>
   )
+
+  if (isReset) return <ResetPassword onDone={() => { setIsReset(false) }} />
 
   if (!session) return <Login />
 
