@@ -132,9 +132,13 @@ function MediaUploader({ entityType, entityId, session, onUploaded }) {
 
   return (
     <div>
-      <input ref={fileRef} type="file" accept="image/*,video/*" multiple style={{display:'none'}} onChange={handleFiles}/>
+      <input ref={fileRef} type="file" accept="image/*,video/*" multiple capture="environment" style={{display:'none'}} onChange={handleFiles}/>
       <button onClick={()=>fileRef.current.click()} disabled={uploading} style={{display:'flex',alignItems:'center',gap:6,padding:'8px 14px',borderRadius:8,border:'0.5px solid #ddd',background:'#f8f8f8',color:'#555',fontSize:12,cursor:'pointer',fontFamily:'inherit',opacity:uploading?0.6:1}}>
         {uploading ? '⏳ Uploading…' : '📎 Attach photo / video'}
+      </button>
+      <input ref={fileRef} type="file" accept="image/*,video/*" multiple style={{display:'none'}} onChange={handleFiles} id="file-library"/>
+      <button onClick={()=>{ document.getElementById('file-library').click() }} disabled={uploading} style={{display:'flex',alignItems:'center',gap:6,padding:'8px 14px',borderRadius:8,border:'0.5px solid #ddd',background:'#E6F1FB',color:'#185FA5',fontSize:12,cursor:'pointer',fontFamily:'inherit',marginTop:6,opacity:uploading?0.6:1}}>
+        🖼 Choose from library
       </button>
     </div>
   )
