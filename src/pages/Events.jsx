@@ -585,6 +585,16 @@ function EventCard({ event, session, faded, onRefresh }) {
     onRefresh()
   }
 
+  async function deleteEvent(permanent) {
+    if (permanent) {
+      await supabase.from('events').delete().eq('id', event.id)
+    } else {
+      await supabase.from('events').update({ deleted_at: new Date().toISOString() }).eq('id', event.id)
+      await supabase.from('deleted_items_log').insert({ entity_type: 'event', entity_id: event.id, entity_title: event.name, deleted_by: session.user.id })
+    }
+    onRefresh()
+  }
+
   async function handleAlert() {
     await alertCrew(event.name, event.event_date, event.event_type)
     setAlertSent(true)
@@ -673,6 +683,17 @@ function EventCard({ event, session, faded, onRefresh }) {
 
         {expanded && total === 0 && (
           <p style={{fontSize:12,color:'#888',padding:'8px 0'}} onClick={e=>e.stopPropagation()}>No checklist items yet.</p>
+        )}
+
+        {expanded && !faded && (
+          <div style={{borderTop:'0.5px solid #f0f0f0',padding:'10px 0 4px',display:'flex',gap:7}} onClick={e=>e.stopPropagation()}>
+            <button onClick={()=>{ if(window.confirm('Archive this event?')) deleteEvent(false) }} style={{flex:1,padding:'8px',borderRadius:8,border:'0.5px solid #ddd',background:'#FAEEDA',color:'#854F0B',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
+              📦 Archive
+            </button>
+            <button onClick={()=>{ if(window.confirm('Permanently delete this event and its checklist?')) deleteEvent(true) }} style={{flex:1,padding:'8px',borderRadius:8,border:'0.5px solid #ddd',background:'#FCEBEB',color:'#A32D2D',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
+              🗑 Delete
+            </button>
+          </div>
         )}
       </div>
     </div>
