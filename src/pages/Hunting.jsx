@@ -236,7 +236,7 @@ export default function Hunting({ session }) {
                     </div>
                   </div>
                   {isOwnerAdmin && (
-                    <div style={{display:'flex',gap:5'}}>
+                    <div style={{display:'flex',gap:5}}>
                       <button onClick={()=>{ if(window.confirm('Archive this log entry?')) deleteLog(l.id, false) }} style={{padding:'4px 8px',borderRadius:6,border:'0.5px solid #ddd',background:'#FAEEDA',color:'#854F0B',fontSize:10,cursor:'pointer',fontFamily:'inherit'}}>📦</button>
                       {isOwner && <button onClick={()=>{ if(window.confirm('Permanently delete?')) deleteLog(l.id, true) }} style={{padding:'4px 8px',borderRadius:6,border:'0.5px solid #ddd',background:'#FCEBEB',color:'#A32D2D',fontSize:10,cursor:'pointer',fontFamily:'inherit'}}>🗑</button>}
                     </div>
