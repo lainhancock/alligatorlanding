@@ -141,6 +141,19 @@ export default function Admin({ session }) {
     loadAll()
   }
 
+  async function softDeleteTask(id, title) {
+    await supabase.from('tasks').update({ deleted_at: new Date().toISOString(), active: false }).eq('id', id)
+    await supabase.from('deleted_items_log').insert({ entity_type: 'task', entity_id: id, entity_title: title, deleted_by: session.user.id })
+    setView('list')
+    loadAll()
+  }
+
+  async function permanentDeleteTask(id) {
+    await supabase.from('tasks').delete().eq('id', id)
+    setView('list')
+    loadAll()
+  }
+
   async function inviteUser() {
     if (!inviteEmail.trim()) return
     setInviting(true)
@@ -164,6 +177,7 @@ export default function Admin({ session }) {
   }
 
   const isOwnerAdmin = profile?.role === 'owner' || profile?.role === 'admin'
+  const isOwner = profile?.role === 'owner'
   const filteredTasks = taskFilter === 'all' ? tasks : tasks.filter(t => t.category?.name === taskFilter)
 
   // ── NEW TASK FORM ──────────────────────────────────────────
@@ -284,10 +298,22 @@ export default function Admin({ session }) {
           </div>
         )}
         {isOwnerAdmin && (
-          <button className="btn" style={{background:selectedTask.active?'#FCEBEB':'#EAF3DE',color:selectedTask.active?'#A32D2D':'#3B6D11'}}
-            onClick={() => { toggleTaskActive(selectedTask.id, selectedTask.active); setView('list') }}>
-            {selectedTask.active ? 'Deactivate task' : 'Reactivate task'}
-          </button>
+          <div style={{display:'flex',gap:8,marginBottom:7}}>
+            <button className="btn" style={{background:selectedTask.active?'#FCEBEB':'#EAF3DE',color:selectedTask.active?'#A32D2D':'#3B6D11',marginBottom:0,flex:1}}
+              onClick={() => { toggleTaskActive(selectedTask.id, selectedTask.active); setView('list') }}>
+              {selectedTask.active ? 'Deactivate' : 'Reactivate'}
+            </button>
+            <button className="btn" style={{background:'#FAEEDA',color:'#854F0B',marginBottom:0,flex:1}}
+              onClick={() => { if(window.confirm('Archive this task?')) softDeleteTask(selectedTask.id, selectedTask.title) }}>
+              📦 Archive
+            </button>
+            {isOwner && (
+              <button className="btn" style={{background:'#FCEBEB',color:'#A32D2D',marginBottom:0,flex:1}}
+                onClick={() => { if(window.confirm('Permanently delete? This cannot be undone.')) permanentDeleteTask(selectedTask.id) }}>
+                🗑 Delete
+              </button>
+            )}
+          </div>
         )}
         <button className="btn btn-secondary" onClick={() => setView('list')}>Back to tasks</button>
       </div>
