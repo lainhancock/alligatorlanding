@@ -96,8 +96,11 @@ function DeleteMenu({ isOwner, onSoftDelete, onPermanentDelete }) {
   )
 }
 
-function canEditOrDelete(profile) {
-  return profile?.role === 'owner' || profile?.role === 'admin'
+function canEditOrDelete(profile, email) {
+  if (profile?.role === 'owner' || profile?.role === 'admin') return true
+  // Fallback while profile loads — check known owner/admin emails
+  const adminEmails = ['hancock.lain@gmail.com', 'lain@alligatorlanding.com']
+  return adminEmails.includes(email)
 }
 
 // ── MEDIA UPLOADER ─────────────────────────────────────────
@@ -326,8 +329,8 @@ export default function Tracker({ session }) {
     loadAll()
   }
 
-  const isOwnerAdmin = canEditOrDelete(profile)
-  const isOwner = profile?.role === 'owner'
+  const isOwnerAdmin = canEditOrDelete(profile, session.user.email)
+  const isOwner = profile?.role === 'owner' || session.user.email === 'hancock.lain@gmail.com'
   const filteredWOs = workOrders.filter(w => woFilter === 'all' || w.status === woFilter)
   const donePunch = punch.filter(p => p.done).length
   const openCrit = workOrders.filter(w => w.priority === 'crit' && w.status !== 'done').length
