@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { format } from 'date-fns'
 
@@ -20,8 +20,8 @@ export default function Today({ session }) {
   const [tasks, setTasks] = useState([])
   const [profile, setProfile] = useState(null)
   const [filter, setFilter] = useState('all')
-  const [catFilter, setCatFilter] = useState('all')
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [selected, setSelected] = useState(null)
   const [signOff, setSignOff] = useState(false)
   const [note, setNote] = useState('')
@@ -39,37 +39,55 @@ export default function Today({ session }) {
 
   async function loadTasks() {
     setLoading(true)
+    setError(null)
     const today = format(new Date(), 'yyyy-MM-dd')
-    const { data, error } = await supabase
+
+    // Step 1 — get occurrences
+    const { data: occurrences, error: occErr } = await supabase
       .from('task_occurrences')
-      .select(`
-        *,
-        task:tasks(*, category:categories(*), asset:assets(*)),
-        assigned_profile:profiles!task_occurrences_assigned_to_fkey(full_name, avatar_initials)
-      `)
+      .select('*')
       .lte('due_date', today)
       .order('due_date', { ascending: true })
-    if (!error && data) setTasks(data)
+
+    if (occErr) { setError('Occurrences error: ' + occErr.message); setLoading(false); return }
+    if (!occurrences || occurrences.length === 0) { setTasks([]); setLoading(false); return }
+
+    // Step 2 — get task details for each occurrence
+    const taskIds = [...new Set(occurrences.map(o => o.task_id))]
+    const { data: taskData, error: taskErr } = await supabase
+      .from('tasks')
+      .select('*, category:categories(*), asset:assets(*)')
+      .in('id', taskIds)
+
+    if (taskErr) { setError('Tasks error: ' + taskErr.message); setLoading(false); return }
+
+    // Step 3 — merge
+    const taskMap = {}
+    taskData?.forEach(t => { taskMap[t.id] = t })
+
+    const merged = occurrences.map(o => ({
+      ...o,
+      task: taskMap[o.task_id] || null
+    }))
+
+    setTasks(merged)
     setLoading(false)
   }
 
   async function completeTask() {
     if (!selected) return
-    const { data: completion } = await supabase.from('task_completions').insert({
+    await supabase.from('task_completions').insert({
       occurrence_id: selected.id,
       completed_by: session.user.id,
       notes: note
-    }).select().single()
-
+    })
     await supabase.from('task_occurrences').update({ status: 'completed' }).eq('id', selected.id)
-
     await supabase.from('audit_log').insert({
       actor_id: session.user.id,
       action: 'task_completed',
       entity_type: 'task_occurrence',
       entity_id: selected.id
     })
-
     setSignOff(false)
     setSelected(null)
     setNote('')
@@ -77,24 +95,22 @@ export default function Today({ session }) {
     loadTasks()
   }
 
-  const overdue = tasks.filter(t => t.status === 'overdue' || (t.status === 'pending' && t.due_date < format(new Date(), 'yyyy-MM-dd')))
-  const pending = tasks.filter(t => t.status === 'pending' && t.due_date === format(new Date(), 'yyyy-MM-dd'))
+  const today = format(new Date(), 'yyyy-MM-dd')
+  const overdue = tasks.filter(t => t.status !== 'completed' && t.due_date < today)
+  const pending = tasks.filter(t => t.status === 'pending' && t.due_date === today)
   const done = tasks.filter(t => t.status === 'completed')
   const total = tasks.length
   const doneCount = done.length
 
-  const applyFilters = (list) => {
-    let filtered = list
-    if (catFilter !== 'all') filtered = filtered.filter(t => t.task?.category?.name === catFilter)
-    return filtered
+  const applyFilter = (list) => {
+    if (filter === 'all') return list
+    return list
   }
 
   if (signOff && selected) return (
     <div>
       <div className="topbar">
-        <button onClick={() => { setSignOff(false) }} style={{background:'none',border:'none',color:'#fff',fontSize:13,cursor:'pointer',marginBottom:10,display:'flex',alignItems:'center',gap:4}}>
-          ← Back
-        </button>
+        <button onClick={() => setSignOff(false)} style={{background:'none',border:'none',color:'#fff',fontSize:13,cursor:'pointer',marginBottom:10,display:'flex',alignItems:'center',gap:4}}>← Back</button>
         <h1>Sign off task</h1>
         <p>{selected.task?.title}</p>
       </div>
@@ -105,7 +121,7 @@ export default function Today({ session }) {
         </div>
         <div className="form-group">
           <label className="form-label">Notes (optional)</label>
-          <textarea value={note} onChange={e => setNote(e.target.value)} className="form-input" rows={3} placeholder="Any observations or issues…" style={{resize:'none'}} />
+          <textarea value={note} onChange={e => setNote(e.target.value)} className="form-input" rows={3} placeholder="Any observations or issues…" style={{resize:'none'}}/>
         </div>
         <div style={{background:'#f5f5f5',borderRadius:8,padding:10,marginBottom:14,fontSize:12,color:'#666'}}>
           📍 GPS location will be recorded · {format(new Date(), 'h:mm a')}
@@ -119,16 +135,14 @@ export default function Today({ session }) {
   if (selected) return (
     <div>
       <div className="topbar">
-        <button onClick={() => setSelected(null)} style={{background:'none',border:'none',color:'#fff',fontSize:13,cursor:'pointer',marginBottom:10,display:'flex',alignItems:'center',gap:4}}>
-          ← Back
-        </button>
+        <button onClick={() => setSelected(null)} style={{background:'none',border:'none',color:'#fff',fontSize:13,cursor:'pointer',marginBottom:10,display:'flex',alignItems:'center',gap:4}}>← Back</button>
         <h1>{selected.task?.title}</h1>
-        <p>{selected.task?.category?.name} · {selected.task?.asset?.name}</p>
+        <p>{selected.task?.category?.name} · {selected.task?.asset?.name || '—'}</p>
       </div>
       <div className="content">
         <div style={{marginBottom:10}}>
           {selected.status === 'completed' ? <span className="badge badge-done">Completed</span>
-          : selected.status === 'overdue' ? <span className="badge badge-overdue">Overdue</span>
+          : selected.due_date < today ? <span className="badge badge-overdue">Overdue</span>
           : <span className="badge badge-due">Due today</span>}
         </div>
         {selected.task?.instructions && (
@@ -140,18 +154,18 @@ export default function Today({ session }) {
         <div style={{background:'#f8f8f8',borderRadius:8,padding:10,display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
           <div><p style={{fontSize:10,color:'#888'}}>Asset</p><p style={{fontSize:12,fontWeight:500}}>{selected.task?.asset?.name || '—'}</p></div>
           <div><p style={{fontSize:10,color:'#888'}}>Frequency</p><p style={{fontSize:12,fontWeight:500}}>{selected.task?.frequency}</p></div>
-          <div><p style={{fontSize:10,color:'#888'}}>Assigned</p><p style={{fontSize:12,fontWeight:500}}>{selected.assigned_profile?.full_name || 'Unassigned'}</p></div>
+          <div><p style={{fontSize:10,color:'#888'}}>Priority</p><p style={{fontSize:12,fontWeight:500}}>{selected.task?.priority || 'normal'}</p></div>
           <div><p style={{fontSize:10,color:'#888'}}>Photo req.</p><p style={{fontSize:12,fontWeight:500}}>{selected.task?.photo_required ? 'Yes' : 'No'}</p></div>
         </div>
         {selected.status !== 'completed' && (
           <>
             <button className="btn btn-success" onClick={() => setSignOff(true)}>✓ Mark complete</button>
             <button className="btn btn-warn" onClick={async () => {
-              await supabase.from('task_occurrences').update({status:'needs_attention'}).eq('id',selected.id)
+              await supabase.from('task_occurrences').update({status:'needs_attention'}).eq('id', selected.id)
               setSelected(null); loadTasks()
             }}>⚠ Needs attention</button>
             <button className="btn btn-secondary" onClick={async () => {
-              await supabase.from('task_occurrences').update({status:'skipped'}).eq('id',selected.id)
+              await supabase.from('task_occurrences').update({status:'skipped'}).eq('id', selected.id)
               setSelected(null); loadTasks()
             }}>Skip with note</button>
           </>
@@ -174,6 +188,8 @@ export default function Today({ session }) {
         </div>
       </div>
       <div className="content">
+
+        {/* Summary ring */}
         <div className="summary-card">
           <svg width="60" height="60" viewBox="0 0 60 60">
             <circle cx="30" cy="30" r="24" fill="none" stroke="#B5D4F4" strokeWidth="5"/>
@@ -191,6 +207,7 @@ export default function Today({ session }) {
           </div>
         </div>
 
+        {/* Filter pills */}
         <div style={{display:'flex',gap:5,marginBottom:10,flexWrap:'wrap'}}>
           {['all','overdue','pending','done'].map(f => (
             <button key={f} className={`filter-pill${filter===f?' active':''}`} onClick={() => setFilter(f)}>
@@ -198,6 +215,13 @@ export default function Today({ session }) {
             </button>
           ))}
         </div>
+
+        {/* Error state */}
+        {error && (
+          <div style={{background:'#FCEBEB',borderRadius:8,padding:12,marginBottom:10,fontSize:12,color:'#A32D2D'}}>
+            ⚠ {error}
+          </div>
+        )}
 
         {loading ? (
           <p style={{textAlign:'center',color:'#888',padding:'32px 0',fontSize:13}}>Loading tasks…</p>
@@ -209,22 +233,22 @@ export default function Today({ session }) {
           </div>
         ) : (
           <>
-            {(filter === 'all' || filter === 'overdue') && applyFilters(overdue).length > 0 && (
+            {(filter === 'all' || filter === 'overdue') && overdue.length > 0 && (
               <>
                 <div className="section-label">Overdue</div>
-                {applyFilters(overdue).map(t => <TaskCard key={t.id} task={t} onClick={() => setSelected(t)} />)}
+                {overdue.map(t => <TaskCard key={t.id} task={t} onClick={() => setSelected(t)} />)}
               </>
             )}
-            {(filter === 'all' || filter === 'pending') && applyFilters(pending).length > 0 && (
+            {(filter === 'all' || filter === 'pending') && pending.length > 0 && (
               <>
                 <div className="section-label">Today</div>
-                {applyFilters(pending).map(t => <TaskCard key={t.id} task={t} onClick={() => setSelected(t)} />)}
+                {pending.map(t => <TaskCard key={t.id} task={t} onClick={() => setSelected(t)} />)}
               </>
             )}
-            {(filter === 'all' || filter === 'done') && applyFilters(done).length > 0 && (
+            {(filter === 'all' || filter === 'done') && done.length > 0 && (
               <>
                 <div className="section-label">Completed</div>
-                {applyFilters(done).map(t => <TaskCard key={t.id} task={t} onClick={() => setSelected(t)} />)}
+                {done.map(t => <TaskCard key={t.id} task={t} onClick={() => setSelected(t)} />)}
               </>
             )}
           </>
@@ -244,18 +268,22 @@ function TaskCard({ task, onClick }) {
       </div>
       <div style={{flex:1,minWidth:0}}>
         <div style={{fontSize:13,fontWeight:500,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-          {task.task?.title}
+          {task.task?.title || 'Unknown task'}
         </div>
         <div style={{fontSize:11,color:'#666',marginTop:2}}>
           {status === 'completed' ? <span className="badge badge-done">Done</span>
           : status === 'overdue' ? <span className="badge badge-overdue">Overdue</span>
           : <span className="badge badge-due">Due</span>}
-          {' '}{task.task?.asset?.name}
+          {task.task?.asset?.name ? ` · ${task.task.asset.name}` : ''}
         </div>
       </div>
       <div className={`check-btn${status==='completed'?' done':''}`}>
         {status === 'completed' && '✓'}
       </div>
+    </div>
+  )
+}
+
     </div>
   )
 }
