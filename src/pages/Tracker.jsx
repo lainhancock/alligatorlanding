@@ -103,10 +103,29 @@ function canEditOrDelete(profile, email) {
   return adminEmails.includes(email)
 }
 
-// ── MEDIA UPLOADER ─────────────────────────────────────────
-function MediaUploader({ entityType, entityId, session, onUploaded }) {
-  const fileRef = useRef()
+// ── MEDIA PANEL (upload + gallery combined) ───────────────
+function MediaPanel({ entityType, entityId, session }) {
+  const [media, setMedia] = useState([])
   const [uploading, setUploading] = useState(false)
+  const [lightbox, setLightbox] = useState(null)
+  const fileRef = useRef()
+
+  useEffect(() => { if (entityId) loadMedia() }, [entityId])
+
+  async function loadMedia() {
+    const { data } = await supabase
+      .from('tracker_media')
+      .select('*, uploaded_profile:profiles!tracker_media_uploaded_by_fkey(full_name)')
+      .eq('entity_type', entityType)
+      .eq('entity_id', entityId)
+      .order('created_at', { ascending: false })
+    if (data) {
+      setMedia(data.map(m => {
+        const { data: urlData } = supabase.storage.from('tracker-media').getPublicUrl(m.storage_path)
+        return { ...m, url: urlData?.publicUrl }
+      }))
+    }
+  }
 
   async function handleFiles(e) {
     const files = Array.from(e.target.files)
@@ -114,7 +133,7 @@ function MediaUploader({ entityType, entityId, session, onUploaded }) {
     setUploading(true)
     for (const file of files) {
       const ext = file.name.split('.').pop()
-      const path = `${entityType}/${entityId}/${Date.now()}.${ext}`
+      const path = `${entityType}/${entityId}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
       const { error } = await supabase.storage.from('tracker-media').upload(path, file, { contentType: file.type })
       if (!error) {
         await supabase.from('tracker_media').insert({
@@ -126,83 +145,49 @@ function MediaUploader({ entityType, entityId, session, onUploaded }) {
       }
     }
     setUploading(false)
-    if (onUploaded) onUploaded()
+    await loadMedia()
     e.target.value = ''
-  }
-
-  // Plain input with no capture attribute — iOS will show Take Photo / Photo Library / Files menu
-  return (
-    <div>
-      <input
-        ref={fileRef}
-        type="file"
-        accept="image/*,video/*"
-        multiple
-        style={{display:'none'}}
-        onChange={handleFiles}
-      />
-      <button
-        onClick={() => fileRef.current.click()}
-        disabled={uploading}
-        style={{
-          display:'flex', alignItems:'center', gap:6,
-          padding:'8px 14px', borderRadius:8,
-          border:'0.5px solid #ddd', background:'#f8f8f8',
-          color:'#555', fontSize:12, cursor:'pointer',
-          fontFamily:'inherit', opacity:uploading ? 0.6 : 1
-        }}
-      >
-        {uploading ? '⏳ Uploading…' : '📎 Attach photo / video'}
-      </button>
-    </div>
-  )
-}
-
-// ── MEDIA GALLERY ──────────────────────────────────────────
-function MediaGallery({ entityType, entityId, session, refreshKey }) {
-  const [media, setMedia] = useState([])
-  const [lightbox, setLightbox] = useState(null)
-
-  useEffect(() => { loadMedia() }, [entityId, refreshKey])
-
-  async function loadMedia() {
-    const { data } = await supabase.from('tracker_media').select('*, uploaded_profile:profiles!tracker_media_uploaded_by_fkey(full_name)').eq('entity_type', entityType).eq('entity_id', entityId).order('created_at', { ascending: false })
-    if (data) {
-      const withUrls = data.map(m => {
-        const { data: urlData } = supabase.storage.from('tracker-media').getPublicUrl(m.storage_path)
-        return { ...m, url: urlData?.publicUrl }
-      })
-      setMedia(withUrls)
-    }
   }
 
   async function deleteMedia(id, path) {
     await supabase.storage.from('tracker-media').remove([path])
     await supabase.from('tracker_media').delete().eq('id', id)
-    loadMedia()
     setLightbox(null)
+    loadMedia()
   }
 
-  if (media.length === 0) return null
-
   return (
-    <div style={{marginBottom:10}}>
+    <div>
       {lightbox && (
-        <div onClick={()=>setLightbox(null)} style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.92)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:12,padding:16}}>
-          {lightbox.file_type==='video' ? <video src={lightbox.url} controls autoPlay style={{maxWidth:'100%',maxHeight:'70vh',borderRadius:8}}/> : <img src={lightbox.url} alt="" style={{maxWidth:'100%',maxHeight:'70vh',borderRadius:8,objectFit:'contain'}}/>}
+        <div onClick={() => setLightbox(null)} style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.92)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:12,padding:16}}>
+          {lightbox.file_type==='video'
+            ? <video src={lightbox.url} controls autoPlay style={{maxWidth:'100%',maxHeight:'70vh',borderRadius:8}}/>
+            : <img src={lightbox.url} alt="" style={{maxWidth:'100%',maxHeight:'70vh',borderRadius:8,objectFit:'contain'}}/>}
           <div style={{color:'#fff',fontSize:12}}>{lightbox.file_name} · {lightbox.uploaded_profile?.full_name}</div>
           <button onClick={e=>{e.stopPropagation();deleteMedia(lightbox.id,lightbox.storage_path)}} style={{padding:'8px 16px',borderRadius:8,border:'none',background:'#A32D2D',color:'#fff',fontSize:12,cursor:'pointer'}}>Delete</button>
           <div style={{color:'rgba(255,255,255,0.5)',fontSize:11}}>Tap anywhere to close</div>
         </div>
       )}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:6}}>
-        {media.map(m => (
-          <div key={m.id} onClick={()=>setLightbox(m)} style={{aspectRatio:'1',borderRadius:8,overflow:'hidden',background:'#f0f0f0',cursor:'pointer'}}>
-            {m.file_type==='video' ? <div style={{width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center',background:'#1a1a1a',flexDirection:'column',gap:4}}><span style={{fontSize:24}}>▶</span><span style={{fontSize:9,color:'#aaa'}}>VIDEO</span></div>
-            : m.url ? <img src={m.url} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/> : <div style={{width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center'}}><span style={{fontSize:20}}>📷</span></div>}
-          </div>
-        ))}
-      </div>
+      {media.length > 0 && (
+        <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:6,marginBottom:8}}>
+          {media.map(m => (
+            <div key={m.id} onClick={() => setLightbox(m)} style={{aspectRatio:'1',borderRadius:8,overflow:'hidden',background:'#f0f0f0',cursor:'pointer'}}>
+              {m.file_type==='video'
+                ? <div style={{width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center',background:'#1a1a1a',flexDirection:'column',gap:4}}><span style={{fontSize:20}}>▶</span><span style={{fontSize:9,color:'#aaa'}}>VIDEO</span></div>
+                : m.url ? <img src={m.url} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/> : <div style={{width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center'}}><span style={{fontSize:16}}>📷</span></div>}
+            </div>
+          ))}
+        </div>
+      )}
+      <input ref={fileRef} type="file" accept="image/*,video/*" multiple style={{display:'none'}} onChange={handleFiles}/>
+      <button onClick={() => fileRef.current.click()} disabled={uploading} style={{
+        display:'flex',alignItems:'center',gap:6,
+        padding:'8px 14px',borderRadius:8,border:'0.5px solid #ddd',
+        background:'#f8f8f8',color:'#555',fontSize:12,cursor:'pointer',
+        fontFamily:'inherit',marginBottom:8,opacity:uploading?0.6:1
+      }}>
+        {uploading ? '⏳ Uploading…' : '📎 Attach photo / video'}
+      </button>
     </div>
   )
 }
@@ -247,7 +232,7 @@ function CommentSection({ entityType, entityId, session, tableName, fkField }) {
         <input className="form-input" style={{flex:1}} value={text} onChange={e=>setText(e.target.value)} placeholder="Add a comment…" onKeyDown={e=>e.key==='Enter'&&addComment()}/>
         <button onClick={addComment} style={{padding:'9px 14px',borderRadius:8,border:'none',background:'#1A4F8A',color:'#fff',fontSize:12,cursor:'pointer',fontFamily:'inherit',fontWeight:500,flexShrink:0}}>Post</button>
       </div>
-      <div style={{marginBottom:12}}><MediaUploader entityType="comment" entityId={`${entityType}-${entityId}`} session={session} onUploaded={loadComments}/></div>
+      <div style={{marginBottom:12}}><MediaPanel entityType="comment" entityId={`${entityType}-${entityId}`} session={session}/></div>
     </div>
   )
 }
@@ -268,7 +253,6 @@ export default function Tracker({ session }) {
   const [woForm, setWoForm] = useState({ title:'', description:'', category:CATEGORIES[0], asset:'— select —', priority:'med', assigned_to:'Unassigned', due_date:'', photo_required:false, approval_required:true })
   const [isEditing, setIsEditing] = useState(false)
   const [pendingFiles, setPendingFiles] = useState([])
-  const [woMediaKey, setWoMediaKey] = useState(0)
   const [uploading, setUploading] = useState(false)
   const woFileRef = useRef()
 
@@ -516,8 +500,7 @@ export default function Tracker({ session }) {
             <div style={{background:'#f8f8f8',borderRadius:8,padding:9}}><div style={{fontSize:10,color:'#888'}}>Due date</div><div style={{fontSize:12,fontWeight:500,marginTop:2}}>{selectedWO.due_date?format(new Date(selectedWO.due_date),'MMM d, yyyy'):'—'}</div></div>
           </div>
           <div className="section-label">Photos & videos</div>
-          <MediaGallery entityType="work_order" entityId={selectedWO.id} session={session} refreshKey={woMediaKey}/>
-          <div style={{marginBottom:12}}><MediaUploader entityType="work_order" entityId={selectedWO.id} session={session} onUploaded={()=>setWoMediaKey(k=>k+1)}/></div>
+          <MediaPanel entityType="work_order" entityId={selectedWO.id} session={session}/>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:7,marginBottom:7}}>
             <button className="btn" style={{background:'#E6F1FB',color:'#1A4F8A',marginBottom:0}} onClick={()=>updateWOStatus(selectedWO.id,'inprogress')}>▶ In progress</button>
             <button className="btn btn-success" style={{marginBottom:0}} onClick={()=>updateWOStatus(selectedWO.id,'done')}>✓ Complete</button>
@@ -551,8 +534,7 @@ export default function Tracker({ session }) {
           )}
         </div>
         <div className="section-label">Photos & videos</div>
-        <MediaGallery entityType="punch_list" entityId={selectedPunch.id} session={session}/>
-        <div style={{marginBottom:12}}><MediaUploader entityType="punch_list" entityId={selectedPunch.id} session={session} onUploaded={()=>{}}/></div>
+        <MediaPanel entityType="punch_list" entityId={selectedPunch.id} session={session}/>
         <CommentSection entityType="punch_list" entityId={selectedPunch.id} session={session} tableName="punch_list_comments" fkField="punch_list_id"/>
         <button className="btn btn-secondary" onClick={()=>{ setSelectedPunch(null); setView('list'); setTab('punch') }}>Back to list</button>
       </div>
@@ -684,8 +666,7 @@ export default function Tracker({ session }) {
                       />
                     )}
                   </div>
-                  <MediaGallery entityType="note" entityId={n.id} session={session}/>
-                  <div style={{marginBottom:8}}><MediaUploader entityType="note" entityId={n.id} session={session} onUploaded={()=>{}}/></div>
+                  <MediaPanel entityType="note" entityId={n.id} session={session}/>
                   <div style={{display:'flex',gap:8,fontSize:10,color:'#aaa',flexWrap:'wrap'}}>
                     <span>{n.asset}</span><span>·</span>
                     <span>{n.created_profile?.full_name||'Unknown'}</span><span>·</span>
