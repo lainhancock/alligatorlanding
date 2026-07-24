@@ -100,10 +100,10 @@ export default function Today({ session }) {
       .select('*')
       .eq('occurrence_id', occurrenceId)
     if (data) {
-      const withUrls = await Promise.all(data.map(async m => {
-        const { data: u } = await supabase.storage.from('task-photos').createSignedUrl(m.storage_path, 3600)
-        return { ...m, url: u?.signedUrl }
-      }))
+      const withUrls = data.map(m => {
+        const { data: urlData } = supabase.storage.from('task-photos').getPublicUrl(m.storage_path)
+        return { ...m, url: urlData?.publicUrl }
+      })
       setTaskMedia(withUrls)
     }
   }
