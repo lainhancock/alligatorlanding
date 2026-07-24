@@ -76,6 +76,7 @@ export default function Today({ session }) {
       task: taskMap[o.task_id] || null
     }))
 
+    setError('today=' + today + ' due=' + merged[0]?.due_date + ' norm=' + merged[0]?.due_date?.substring(0,10))
     setTasks(merged)
     setLoading(false)
   }
