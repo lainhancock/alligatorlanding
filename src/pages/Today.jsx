@@ -50,7 +50,10 @@ export default function Today({ session }) {
       .order('due_date', { ascending: true })
 
     if (occErr) { setError('Occurrences error: ' + occErr.message); setLoading(false); return }
-    if (!occurrences || occurrences.length === 0) { setTasks([]); setLoading(false); return }
+    if (!occurrences || occurrences.length === 0) { 
+      setError('Query returned 0 rows — session: ' + session.user.id)
+      setTasks([]); setLoading(false); return 
+    }
 
     // Step 2 — get task details for each occurrence
     const taskIds = [...new Set(occurrences.map(o => o.task_id))]
