@@ -26,6 +26,11 @@ export default function Today({ session }) {
   const [signOff, setSignOff] = useState(false)
   const [note, setNote] = useState('')
   const [photoTaken, setPhotoTaken] = useState(false)
+  const [taskComments, setTaskComments] = useState([])
+  const [taskMedia, setTaskMedia] = useState([])
+  const [commentText, setCommentText] = useState('')
+  const taskFileRef = useRef()
+  const [uploadingMedia, setUploadingMedia] = useState(false)
 
   useEffect(() => {
     loadProfile()
@@ -78,6 +83,63 @@ export default function Today({ session }) {
 
     setTasks(merged)
     setLoading(false)
+  }
+
+  async function loadTaskComments(occurrenceId) {
+    const { data } = await supabase
+      .from('task_occurrence_comments')
+      .select('*, created_profile:profiles!task_occurrence_comments_created_by_fkey(full_name, avatar_initials)')
+      .eq('occurrence_id', occurrenceId)
+      .order('created_at', { ascending: true })
+    if (data) setTaskComments(data)
+  }
+
+  async function loadTaskMedia(occurrenceId) {
+    const { data } = await supabase
+      .from('task_photos')
+      .select('*')
+      .eq('occurrence_id', occurrenceId)
+    if (data) {
+      const withUrls = await Promise.all(data.map(async m => {
+        const { data: u } = await supabase.storage.from('task-photos').createSignedUrl(m.storage_path, 3600)
+        return { ...m, url: u?.signedUrl }
+      }))
+      setTaskMedia(withUrls)
+    }
+  }
+
+  async function addTaskComment() {
+    if (!commentText.trim() || !selected) return
+    await supabase.from('task_occurrence_comments').insert({
+      occurrence_id: selected.id,
+      comment_text: commentText.trim(),
+      created_by: session.user.id
+    })
+    setCommentText('')
+    loadTaskComments(selected.id)
+  }
+
+  async function uploadTaskMedia(e) {
+    const files = Array.from(e.target.files)
+    if (!files.length || !selected) return
+    setUploadingMedia(true)
+    for (const file of files) {
+      const ext = file.name.split('.').pop()
+      const path = `tasks/${selected.id}/${Date.now()}.${ext}`
+      const { error } = await supabase.storage.from('task-photos').upload(path, file, { contentType: file.type })
+      if (!error) {
+        await supabase.from('task_photos').insert({
+          occurrence_id: selected.id,
+          storage_path: path,
+          file_name: file.name,
+          file_type: file.type.startsWith('video/') ? 'video' : 'image',
+          uploaded_by: session.user.id
+        })
+      }
+    }
+    setUploadingMedia(false)
+    loadTaskMedia(selected.id)
+    e.target.value = ''
   }
 
   async function completeTask(uploadedFiles = []) {
@@ -182,9 +244,68 @@ export default function Today({ session }) {
             }}>Skip with note</button>
           </>
         )}
+
+        {/* Photos & videos */}
+        <div className="section-label">Photos & videos</div>
+        {taskMedia.length > 0 && (
+          <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:6,marginBottom:8}}>
+            {taskMedia.map(m => (
+              <div key={m.id} style={{aspectRatio:'1',borderRadius:8,overflow:'hidden',background:'#f0f0f0'}}>
+                {m.file_type==='video'
+                  ? <div style={{width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center',background:'#1a1a1a',flexDirection:'column',gap:4}}><span style={{fontSize:20}}>▶</span><span style={{fontSize:9,color:'#aaa'}}>VIDEO</span></div>
+                  : m.url ? <img src={m.url} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/> : null}
+              </div>
+            ))}
+          </div>
+        )}
+        <input ref={taskFileRef} type="file" accept="image/*,video/*" multiple style={{display:'none'}} onChange={uploadTaskMedia}/>
+        <button onClick={() => taskFileRef.current.click()} disabled={uploadingMedia} style={{
+          width:'100%',padding:'8px 14px',borderRadius:8,border:'0.5px solid #ddd',
+          background:'#f8f8f8',color:'#555',fontSize:12,cursor:'pointer',
+          fontFamily:'inherit',marginBottom:12,opacity:uploadingMedia?0.6:1,
+          display:'flex',alignItems:'center',justifyContent:'center',gap:6
+        }}>
+          {uploadingMedia ? '⏳ Uploading…' : '📎 Attach photo / video'}
+        </button>
+
+        {/* Comments */}
+        <div className="section-label">Comments ({taskComments.length})</div>
+        <div style={{background:'#fff',border:'0.5px solid #ddd',borderRadius:8,padding:'0 12px',marginBottom:8}}>
+          {taskComments.length === 0
+            ? <p style={{padding:'12px 0',fontSize:12,color:'#aaa',textAlign:'center'}}>No comments yet.</p>
+            : taskComments.map(c => (
+              <div key={c.id} style={{padding:'9px 0',borderBottom:'0.5px solid #f5f5f5'}}>
+                <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:4}}>
+                  <div style={{width:22,height:22,borderRadius:'50%',background:'#E6F1FB',color:'#0C447C',display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:600,flexShrink:0}}>
+                    {c.created_profile?.avatar_initials || '?'}
+                  </div>
+                  <span style={{fontSize:11,fontWeight:500,color:'#333'}}>{c.created_profile?.full_name || 'Unknown'}</span>
+                  <span style={{fontSize:10,color:'#aaa'}}>{format(new Date(c.created_at),'MMM d · h:mm a')}</span>
+                </div>
+                <div style={{fontSize:12,color:'#444',lineHeight:1.5,paddingLeft:29}}>{c.comment_text}</div>
+              </div>
+            ))
+          }
+        </div>
+        <div style={{display:'flex',gap:8,marginBottom:12}}>
+          <input className="form-input" style={{flex:1}} value={commentText}
+            onChange={e => setCommentText(e.target.value)}
+            placeholder="Add a comment…"
+            onKeyDown={e => e.key==='Enter' && addTaskComment()}/>
+          <button onClick={addTaskComment} style={{padding:'9px 14px',borderRadius:8,border:'none',background:'#1A4F8A',color:'#fff',fontSize:12,cursor:'pointer',fontFamily:'inherit',fontWeight:500,flexShrink:0}}>Post</button>
+        </div>
       </div>
     </div>
   )
+
+  function openTask(t) {
+    setSelected(t)
+    setTaskComments([])
+    setTaskMedia([])
+    setCommentText('')
+    loadTaskComments(t.id)
+    loadTaskMedia(t.id)
+  }
 
   return (
     <div>
