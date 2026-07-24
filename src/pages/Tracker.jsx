@@ -168,10 +168,10 @@ function MediaGallery({ entityType, entityId, session }) {
   async function loadMedia() {
     const { data } = await supabase.from('tracker_media').select('*, uploaded_profile:profiles!tracker_media_uploaded_by_fkey(full_name)').eq('entity_type', entityType).eq('entity_id', entityId).order('created_at', { ascending: false })
     if (data) {
-      const withUrls = await Promise.all(data.map(async m => {
-        const { data: u } = await supabase.storage.from('tracker-media').createSignedUrl(m.storage_path, 3600)
-        return { ...m, url: u?.signedUrl }
-      }))
+      const withUrls = data.map(m => {
+        const { data: urlData } = supabase.storage.from('tracker-media').getPublicUrl(m.storage_path)
+        return { ...m, url: urlData?.publicUrl }
+      })
       setMedia(withUrls)
     }
   }
@@ -714,10 +714,10 @@ function AllMediaGallery({ session }) {
   async function loadAll() {
     const { data } = await supabase.from('tracker_media').select('*, uploaded_profile:profiles!tracker_media_uploaded_by_fkey(full_name)').order('created_at', { ascending: false }).limit(50)
     if (data) {
-      const withUrls = await Promise.all(data.map(async m => {
-        const { data: u } = await supabase.storage.from('tracker-media').createSignedUrl(m.storage_path, 3600)
-        return { ...m, url: u?.signedUrl }
-      }))
+      const withUrls = data.map(m => {
+        const { data: urlData } = supabase.storage.from('tracker-media').getPublicUrl(m.storage_path)
+        return { ...m, url: urlData?.publicUrl }
+      })
       setMedia(withUrls)
     }
     setLoading(false)
