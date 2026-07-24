@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { format } from 'date-fns'
 
@@ -80,13 +80,28 @@ export default function Today({ session }) {
     setLoading(false)
   }
 
-  async function completeTask() {
+  async function completeTask(uploadedFiles = []) {
     if (!selected) return
-    await supabase.from('task_completions').insert({
+    const { data: completion } = await supabase.from('task_completions').insert({
       occurrence_id: selected.id,
       completed_by: session.user.id,
       notes: note
-    })
+    }).select().single()
+
+    // Save photo records
+    if (completion && uploadedFiles.length > 0) {
+      await supabase.from('task_photos').insert(
+        uploadedFiles.map(f => ({
+          occurrence_id: selected.id,
+          completion_id: completion.id,
+          storage_path: f.path,
+          file_name: f.name,
+          file_type: f.type,
+          uploaded_by: session.user.id
+        }))
+      )
+    }
+
     await supabase.from('task_occurrences').update({ status: 'completed' }).eq('id', selected.id)
     await supabase.from('audit_log').insert({
       actor_id: session.user.id,
@@ -117,28 +132,16 @@ export default function Today({ session }) {
   }
 
   if (signOff && selected) return (
-    <div>
-      <div className="topbar">
-        <button onClick={() => setSignOff(false)} style={{background:'none',border:'none',color:'#fff',fontSize:13,cursor:'pointer',marginBottom:10,display:'flex',alignItems:'center',gap:4}}>← Back</button>
-        <h1>Sign off task</h1>
-        <p>{selected.task?.title}</p>
-      </div>
-      <div className="content">
-        <p style={{fontSize:13,color:'#666',marginBottom:12}}>Confirm completion with a photo and notes.</p>
-        <div className={`photo-area${photoTaken?' taken':''}`} onClick={() => setPhotoTaken(!photoTaken)}>
-          {photoTaken ? '✓ Photo taken — tap to retake' : '📷 Tap to take photo'}
-        </div>
-        <div className="form-group">
-          <label className="form-label">Notes (optional)</label>
-          <textarea value={note} onChange={e => setNote(e.target.value)} className="form-input" rows={3} placeholder="Any observations or issues…" style={{resize:'none'}}/>
-        </div>
-        <div style={{background:'#f5f5f5',borderRadius:8,padding:10,marginBottom:14,fontSize:12,color:'#666'}}>
-          📍 GPS location will be recorded · {format(new Date(), 'h:mm a')}
-        </div>
-        <button className="btn btn-success" onClick={completeTask}>✓ Confirm sign-off</button>
-        <button className="btn btn-secondary" onClick={() => setSignOff(false)}>Cancel</button>
-      </div>
-    </div>
+    <SignOffScreen
+      selected={selected}
+      session={session}
+      onComplete={completeTask}
+      onCancel={() => setSignOff(false)}
+      note={note}
+      setNote={setNote}
+      photoTaken={photoTaken}
+      setPhotoTaken={setPhotoTaken}
+    />
   )
 
   if (selected) return (
@@ -262,6 +265,78 @@ export default function Today({ session }) {
             )}
           </>
         )}
+      </div>
+    </div>
+  )
+}
+
+function SignOffScreen({ selected, session, onComplete, onCancel, note, setNote, photoTaken, setPhotoTaken }) {
+  const fileRef = useRef()
+  const [uploading, setUploading] = useState(false)
+  const [uploadedFiles, setUploadedFiles] = useState([])
+
+  async function handleFiles(e) {
+    const files = Array.from(e.target.files)
+    if (!files.length) return
+    setUploading(true)
+    const newFiles = []
+    for (const file of files) {
+      const ext = file.name.split('.').pop()
+      const path = `tasks/${selected.id}/${Date.now()}.${ext}`
+      const { error } = await supabase.storage.from('task-photos').upload(path, file, { contentType: file.type })
+      if (!error) {
+        newFiles.push({ path, name: file.name, type: file.type.startsWith('video/') ? 'video' : 'image' })
+      }
+    }
+    setUploadedFiles(prev => [...prev, ...newFiles])
+    setPhotoTaken(true)
+    setUploading(false)
+    e.target.value = ''
+  }
+
+  return (
+    <div>
+      <div className="topbar">
+        <button onClick={onCancel} style={{background:'none',border:'none',color:'#fff',fontSize:13,cursor:'pointer',marginBottom:10,display:'flex',alignItems:'center',gap:4}}>← Back</button>
+        <h1>Sign off task</h1>
+        <p>{selected.task?.title}</p>
+      </div>
+      <div className="content">
+        <p style={{fontSize:13,color:'#666',marginBottom:12}}>Confirm completion with a photo and notes.</p>
+
+        {/* Photo upload */}
+        <input ref={fileRef} type="file" accept="image/*,video/*" multiple style={{display:'none'}} onChange={handleFiles}/>
+        <div style={{marginBottom:12}}>
+          {uploadedFiles.length > 0 && (
+            <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:6,marginBottom:8}}>
+              {uploadedFiles.map((f,i) => (
+                <div key={i} style={{aspectRatio:'1',borderRadius:8,background:'#EAF3DE',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:4}}>
+                  <span style={{fontSize:20}}>{f.type==='video'?'🎥':'📷'}</span>
+                  <span style={{fontSize:9,color:'#3B6D11',textAlign:'center',padding:'0 4px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:'100%'}}>{f.name}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <button onClick={() => fileRef.current.click()} disabled={uploading} style={{
+            width:'100%',padding:12,borderRadius:8,
+            border:`1.5px dashed ${photoTaken?'#3B6D11':'#ccc'}`,
+            background:photoTaken?'#EAF3DE':'none',
+            color:photoTaken?'#3B6D11':'#888',
+            fontSize:13,cursor:'pointer',fontFamily:'inherit'
+          }}>
+            {uploading ? '⏳ Uploading…' : photoTaken ? `✓ ${uploadedFiles.length} file${uploadedFiles.length!==1?'s':''} attached — tap to add more` : '📷 Tap to take photo or choose from library'}
+          </button>
+        </div>
+
+        <div className="form-group">
+          <label className="form-label">Notes (optional)</label>
+          <textarea value={note} onChange={e => setNote(e.target.value)} className="form-input" rows={3} placeholder="Any observations or issues…" style={{resize:'none'}}/>
+        </div>
+        <div style={{background:'#f5f5f5',borderRadius:8,padding:10,marginBottom:14,fontSize:12,color:'#666'}}>
+          📍 GPS location will be recorded · {format(new Date(), 'h:mm a')}
+        </div>
+        <button className="btn btn-success" onClick={() => onComplete(uploadedFiles)}>✓ Confirm sign-off</button>
+        <button className="btn btn-secondary" onClick={onCancel}>Cancel</button>
       </div>
     </div>
   )
