@@ -283,7 +283,3 @@ function TaskCard({ task, onClick }) {
     </div>
   )
 }
-
-    </div>
-  )
-}
