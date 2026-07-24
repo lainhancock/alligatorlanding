@@ -101,8 +101,10 @@ export default function Today({ session }) {
   }
 
   const today = format(new Date(), 'yyyy-MM-dd')
-  const overdue = tasks.filter(t => t.status !== 'completed' && t.due_date < today)
-  const pending = tasks.filter(t => t.status === 'pending' && t.due_date === today)
+  // due_date may come back as full timestamp — normalize to date string
+  const normalize = (d) => d ? d.substring(0, 10) : ''
+  const overdue = tasks.filter(t => t.status !== 'completed' && normalize(t.due_date) < today)
+  const pending = tasks.filter(t => t.status === 'pending' && normalize(t.due_date) <= today)
   const done = tasks.filter(t => t.status === 'completed')
   const total = tasks.length
   const doneCount = done.length
