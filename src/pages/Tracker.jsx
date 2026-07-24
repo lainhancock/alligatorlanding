@@ -16,7 +16,7 @@ const ASSETS = [
   'Two-man Kayak','Pond Prowler','Twin Troller',
   'Pastures','Roads','Ponds','High fence','Rifle range','Property'
 ]
-const CREW = ['Unassigned','Juan','Lane','Scott','Jacob','Trace','Garrett','Delaney','Jake']
+const CREW = ['Unassigned','Lain','Clare','Juan','Lane','Scott','Jacob','Trace','Garrett','Delaney','Jake']
 const PRI_CONFIG = {
   low:  { label:'Low',      bg:'#F1EFE8', color:'#555',     bar:'#888'    },
   med:  { label:'Medium',   bg:'#E6F1FB', color:'#185FA5',  bar:'#378ADD' },
