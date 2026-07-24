@@ -130,15 +130,29 @@ function MediaUploader({ entityType, entityId, session, onUploaded }) {
     e.target.value = ''
   }
 
+  // Plain input with no capture attribute — iOS will show Take Photo / Photo Library / Files menu
   return (
     <div>
-      <input ref={fileRef} type="file" accept="image/*,video/*" multiple capture="environment" style={{display:'none'}} onChange={handleFiles}/>
-      <button onClick={()=>fileRef.current.click()} disabled={uploading} style={{display:'flex',alignItems:'center',gap:6,padding:'8px 14px',borderRadius:8,border:'0.5px solid #ddd',background:'#f8f8f8',color:'#555',fontSize:12,cursor:'pointer',fontFamily:'inherit',opacity:uploading?0.6:1}}>
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*,video/*"
+        multiple
+        style={{display:'none'}}
+        onChange={handleFiles}
+      />
+      <button
+        onClick={() => fileRef.current.click()}
+        disabled={uploading}
+        style={{
+          display:'flex', alignItems:'center', gap:6,
+          padding:'8px 14px', borderRadius:8,
+          border:'0.5px solid #ddd', background:'#f8f8f8',
+          color:'#555', fontSize:12, cursor:'pointer',
+          fontFamily:'inherit', opacity:uploading ? 0.6 : 1
+        }}
+      >
         {uploading ? '⏳ Uploading…' : '📎 Attach photo / video'}
-      </button>
-      <input ref={fileRef} type="file" accept="image/*,video/*" multiple style={{display:'none'}} onChange={handleFiles} id="file-library"/>
-      <button onClick={()=>{ document.getElementById('file-library').click() }} disabled={uploading} style={{display:'flex',alignItems:'center',gap:6,padding:'8px 14px',borderRadius:8,border:'0.5px solid #ddd',background:'#E6F1FB',color:'#185FA5',fontSize:12,cursor:'pointer',fontFamily:'inherit',marginTop:6,opacity:uploading?0.6:1}}>
-        🖼 Choose from library
       </button>
     </div>
   )
@@ -253,6 +267,9 @@ export default function Tracker({ session }) {
   const [newNote, setNewNote] = useState({ text:'', asset:'General property', flag:'none' })
   const [woForm, setWoForm] = useState({ title:'', description:'', category:CATEGORIES[0], asset:'— select —', priority:'med', assigned_to:'Unassigned', due_date:'', photo_required:false, approval_required:true })
   const [isEditing, setIsEditing] = useState(false)
+  const [pendingFiles, setPendingFiles] = useState([])
+  const [uploading, setUploading] = useState(false)
+  const woFileRef = useRef()
 
   useEffect(() => { loadAll() }, [])
 
@@ -272,6 +289,7 @@ export default function Tracker({ session }) {
 
   async function saveWorkOrder() {
     if (!woForm.title.trim()) return
+    let woId = selectedWO?.id
     if (isEditing && selectedWO) {
       await supabase.from('work_orders').update({
         title: woForm.title, description: woForm.description,
@@ -281,15 +299,37 @@ export default function Tracker({ session }) {
         approval_required: woForm.approval_required, updated_at: new Date().toISOString()
       }).eq('id', selectedWO.id)
     } else {
-      await supabase.from('work_orders').insert({
+      const { data } = await supabase.from('work_orders').insert({
         title: woForm.title, description: woForm.description,
         category: woForm.category, asset: woForm.asset === '— select —' ? null : woForm.asset,
         priority: woForm.priority, assigned_to_name: woForm.assigned_to,
         due_date: woForm.due_date || null, photo_required: woForm.photo_required,
         approval_required: woForm.approval_required, status: 'open',
         created_by: session.user.id
-      })
+      }).select().single()
+      if (data) woId = data.id
     }
+
+    // Upload any pending files
+    if (woId && pendingFiles.length > 0) {
+      setUploading(true)
+      for (const file of pendingFiles) {
+        const ext = file.name.split('.').pop()
+        const path = `work_order/${woId}/${Date.now()}.${ext}`
+        const { error } = await supabase.storage.from('tracker-media').upload(path, file, { contentType: file.type })
+        if (!error) {
+          await supabase.from('tracker_media').insert({
+            storage_path: path, file_name: file.name,
+            file_type: file.type.startsWith('video/') ? 'video' : 'image',
+            mime_type: file.type, entity_type: 'work_order', entity_id: woId,
+            uploaded_by: session.user.id
+          })
+        }
+      }
+      setUploading(false)
+    }
+
+    setPendingFiles([])
     resetWOForm()
     setView('list')
     loadAll()
@@ -299,6 +339,7 @@ export default function Tracker({ session }) {
     setWoForm({ title:'', description:'', category:CATEGORIES[0], asset:'— select —', priority:'med', assigned_to:'Unassigned', due_date:'', photo_required:false, approval_required:true })
     setIsEditing(false)
     setSelectedWO(null)
+    setPendingFiles([])
   }
 
   function openEditWO(wo) {
@@ -408,7 +449,35 @@ export default function Tracker({ session }) {
             ))}
           </div>
         </div>
-        <button className="btn btn-primary" onClick={saveWorkOrder} disabled={!woForm.title.trim()}>{isEditing?'Save changes':'Create work order'}</button>
+        {/* Photo/video upload */}
+        <div style={{marginBottom:12}}>
+          <label className="form-label">Attach photos / videos</label>
+          <input ref={woFileRef} type="file" accept="image/*,video/*" multiple style={{display:'none'}}
+            onChange={e => { setPendingFiles(prev => [...prev, ...Array.from(e.target.files)]); e.target.value='' }}/>
+          {pendingFiles.length > 0 && (
+            <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:6,marginBottom:8}}>
+              {pendingFiles.map((f,i) => (
+                <div key={i} style={{aspectRatio:'1',borderRadius:8,background:'#EAF3DE',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:4,position:'relative'}}>
+                  <span style={{fontSize:20}}>{f.type.startsWith('video/')?'🎥':'📷'}</span>
+                  <span style={{fontSize:9,color:'#3B6D11',padding:'0 4px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:'100%'}}>{f.name}</span>
+                  <button onClick={()=>setPendingFiles(prev=>prev.filter((_,j)=>j!==i))} style={{position:'absolute',top:2,right:2,width:16,height:16,borderRadius:'50%',border:'none',background:'#A32D2D',color:'#fff',fontSize:9,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>×</button>
+                </div>
+              ))}
+            </div>
+          )}
+          <button onClick={() => woFileRef.current.click()} style={{
+            width:'100%',padding:10,borderRadius:8,
+            border:`1.5px dashed ${pendingFiles.length>0?'#3B6D11':'#ccc'}`,
+            background:pendingFiles.length>0?'#EAF3DE':'none',
+            color:pendingFiles.length>0?'#3B6D11':'#888',
+            fontSize:12,cursor:'pointer',fontFamily:'inherit'
+          }}>
+            {pendingFiles.length>0 ? `✓ ${pendingFiles.length} file${pendingFiles.length!==1?'s':''} selected — tap to add more` : '📎 Attach photo / video (optional)'}
+          </button>
+        </div>
+        <button className="btn btn-primary" onClick={saveWorkOrder} disabled={!woForm.title.trim()||uploading}>
+          {uploading ? '⏳ Uploading…' : isEditing ? 'Save changes' : 'Create work order'}
+        </button>
         <button className="btn btn-secondary" onClick={() => { resetWOForm(); setView('list') }}>Cancel</button>
       </div>
     </div>
