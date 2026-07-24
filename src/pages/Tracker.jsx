@@ -120,10 +120,12 @@ function MediaPanel({ entityType, entityId, session }) {
       .eq('entity_id', entityId)
       .order('created_at', { ascending: false })
     if (data) {
-      setMedia(data.map(m => {
+      const withUrls = data.map(m => {
         const { data: urlData } = supabase.storage.from('tracker-media').getPublicUrl(m.storage_path)
+        console.log('Media URL:', urlData?.publicUrl, 'for', m.file_name)
         return { ...m, url: urlData?.publicUrl }
-      }))
+      })
+      setMedia(withUrls)
     }
   }
 
@@ -224,7 +226,7 @@ function CommentSection({ entityType, entityId, session, tableName, fkField }) {
               <span style={{fontSize:10,color:'#aaa'}}>{format(new Date(c.created_at),'MMM d · h:mm a')}</span>
             </div>
             <div style={{fontSize:12,color:'#444',lineHeight:1.5,paddingLeft:29}}>{c.comment_text}</div>
-            <div style={{paddingLeft:29,marginTop:6}}><MediaPanel entityType="comment" entityId={c.id} session={session}/></div>
+
           </div>
         ))}
       </div>
@@ -232,7 +234,7 @@ function CommentSection({ entityType, entityId, session, tableName, fkField }) {
         <input className="form-input" style={{flex:1}} value={text} onChange={e=>setText(e.target.value)} placeholder="Add a comment…" onKeyDown={e=>e.key==='Enter'&&addComment()}/>
         <button onClick={addComment} style={{padding:'9px 14px',borderRadius:8,border:'none',background:'#1A4F8A',color:'#fff',fontSize:12,cursor:'pointer',fontFamily:'inherit',fontWeight:500,flexShrink:0}}>Post</button>
       </div>
-      <div style={{marginBottom:12}}><MediaPanel entityType="comment" entityId={`${entityType}-${entityId}`} session={session}/></div>
+
     </div>
   )
 }
