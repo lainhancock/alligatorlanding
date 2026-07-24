@@ -120,12 +120,10 @@ function MediaPanel({ entityType, entityId, session }) {
       .eq('entity_id', entityId)
       .order('created_at', { ascending: false })
     if (data) {
-      const withUrls = data.map(m => {
+      setMedia(data.map(m => {
         const { data: urlData } = supabase.storage.from('tracker-media').getPublicUrl(m.storage_path)
-        console.log('Media URL:', urlData?.publicUrl, 'for', m.file_name)
         return { ...m, url: urlData?.publicUrl }
-      })
-      setMedia(withUrls)
+      }))
     }
   }
 
