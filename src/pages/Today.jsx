@@ -46,17 +46,19 @@ export default function Today({ session }) {
     const { data: occurrences, error: occErr } = await supabase
       .from('task_occurrences')
       .select('*')
-      .lte('due_date', today)
       .order('due_date', { ascending: true })
 
     if (occErr) { setError('Occurrences error: ' + occErr.message); setLoading(false); return }
     if (!occurrences || occurrences.length === 0) { 
-      setError('Query returned 0 rows — session: ' + session.user.id)
+      setError('Query returned 0 rows — today: ' + today + ' — session: ' + session.user.id)
       setTasks([]); setLoading(false); return 
     }
+    // Filter client-side to avoid date comparison issues
+    const filtered = occurrences.filter(o => o.due_date <= today)
+    const toUse = filtered.length > 0 ? filtered : occurrences
 
     // Step 2 — get task details for each occurrence
-    const taskIds = [...new Set(occurrences.map(o => o.task_id))]
+    const taskIds = [...new Set(toUse.map(o => o.task_id))]
     const { data: taskData, error: taskErr } = await supabase
       .from('tasks')
       .select('*, category:categories(*), asset:assets(*)')
@@ -68,7 +70,7 @@ export default function Today({ session }) {
     const taskMap = {}
     taskData?.forEach(t => { taskMap[t.id] = t })
 
-    const merged = occurrences.map(o => ({
+    const merged = toUse.map(o => ({
       ...o,
       task: taskMap[o.task_id] || null
     }))
