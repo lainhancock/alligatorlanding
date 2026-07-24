@@ -75,6 +75,7 @@ export default function Today({ session }) {
       task: taskMap[o.task_id] || null
     }))
 
+    setError('Sample: ' + JSON.stringify(merged[0]?.due_date) + ' today: ' + today + ' match: ' + (merged[0]?.due_date?.substring(0,10) === today))
     setTasks(merged)
     setLoading(false)
   }
