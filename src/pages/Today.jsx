@@ -40,7 +40,8 @@ export default function Today({ session }) {
   async function loadTasks() {
     setLoading(true)
     setError(null)
-    const today = format(new Date(), 'yyyy-MM-dd')
+    // Use CST date (UTC-6)
+    const today = new Date(new Date().toLocaleString('en-US', {timeZone: 'America/Chicago'})).toLocaleDateString('en-CA')
 
     // Step 1 — get occurrences
     const { data: occurrences, error: occErr } = await supabase
@@ -75,7 +76,6 @@ export default function Today({ session }) {
       task: taskMap[o.task_id] || null
     }))
 
-    setError('Sample: ' + JSON.stringify(merged[0]?.due_date) + ' today: ' + today + ' match: ' + (merged[0]?.due_date?.substring(0,10) === today))
     setTasks(merged)
     setLoading(false)
   }
@@ -101,7 +101,8 @@ export default function Today({ session }) {
     loadTasks()
   }
 
-  const today = format(new Date(), 'yyyy-MM-dd')
+  // Use CST date (UTC-6)
+  const today = new Date(new Date().toLocaleString('en-US', {timeZone: 'America/Chicago'})).toLocaleDateString('en-CA')
   // due_date may come back as full timestamp — normalize to date string
   const normalize = (d) => d ? d.substring(0, 10) : ''
   const overdue = tasks.filter(t => t.status !== 'completed' && normalize(t.due_date) < today)
