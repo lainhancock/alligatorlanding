@@ -224,7 +224,7 @@ function CommentSection({ entityType, entityId, session, tableName, fkField }) {
               <span style={{fontSize:10,color:'#aaa'}}>{format(new Date(c.created_at),'MMM d · h:mm a')}</span>
             </div>
             <div style={{fontSize:12,color:'#444',lineHeight:1.5,paddingLeft:29}}>{c.comment_text}</div>
-            <div style={{paddingLeft:29,marginTop:6}}><MediaGallery entityType="comment" entityId={c.id} session={session}/></div>
+            <div style={{paddingLeft:29,marginTop:6}}><MediaPanel entityType="comment" entityId={c.id} session={session}/></div>
           </div>
         ))}
       </div>
