@@ -159,11 +159,11 @@ function MediaUploader({ entityType, entityId, session, onUploaded }) {
 }
 
 // ── MEDIA GALLERY ──────────────────────────────────────────
-function MediaGallery({ entityType, entityId, session }) {
+function MediaGallery({ entityType, entityId, session, refreshKey }) {
   const [media, setMedia] = useState([])
   const [lightbox, setLightbox] = useState(null)
 
-  useEffect(() => { loadMedia() }, [entityId])
+  useEffect(() => { loadMedia() }, [entityId, refreshKey])
 
   async function loadMedia() {
     const { data } = await supabase.from('tracker_media').select('*, uploaded_profile:profiles!tracker_media_uploaded_by_fkey(full_name)').eq('entity_type', entityType).eq('entity_id', entityId).order('created_at', { ascending: false })
@@ -268,6 +268,7 @@ export default function Tracker({ session }) {
   const [woForm, setWoForm] = useState({ title:'', description:'', category:CATEGORIES[0], asset:'— select —', priority:'med', assigned_to:'Unassigned', due_date:'', photo_required:false, approval_required:true })
   const [isEditing, setIsEditing] = useState(false)
   const [pendingFiles, setPendingFiles] = useState([])
+  const [woMediaKey, setWoMediaKey] = useState(0)
   const [uploading, setUploading] = useState(false)
   const woFileRef = useRef()
 
@@ -515,8 +516,8 @@ export default function Tracker({ session }) {
             <div style={{background:'#f8f8f8',borderRadius:8,padding:9}}><div style={{fontSize:10,color:'#888'}}>Due date</div><div style={{fontSize:12,fontWeight:500,marginTop:2}}>{selectedWO.due_date?format(new Date(selectedWO.due_date),'MMM d, yyyy'):'—'}</div></div>
           </div>
           <div className="section-label">Photos & videos</div>
-          <MediaGallery entityType="work_order" entityId={selectedWO.id} session={session}/>
-          <div style={{marginBottom:12}}><MediaUploader entityType="work_order" entityId={selectedWO.id} session={session} onUploaded={()=>{}}/></div>
+          <MediaGallery entityType="work_order" entityId={selectedWO.id} session={session} refreshKey={woMediaKey}/>
+          <div style={{marginBottom:12}}><MediaUploader entityType="work_order" entityId={selectedWO.id} session={session} onUploaded={()=>setWoMediaKey(k=>k+1)}/></div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:7,marginBottom:7}}>
             <button className="btn" style={{background:'#E6F1FB',color:'#1A4F8A',marginBottom:0}} onClick={()=>updateWOStatus(selectedWO.id,'inprogress')}>▶ In progress</button>
             <button className="btn btn-success" style={{marginBottom:0}} onClick={()=>updateWOStatus(selectedWO.id,'done')}>✓ Complete</button>
