@@ -51,6 +51,9 @@ export default function Admin({ session }) {
   const [inviteRole, setInviteRole] = useState('caretaker')
   const [inviting, setInviting] = useState(false)
   const [inviteSent, setInviteSent] = useState(false)
+  const [editingUser, setEditingUser] = useState(null)
+  const [editName, setEditName] = useState('')
+  const [editRole, setEditRole] = useState('')
 
   const [taskForm, setTaskForm] = useState({
     title: '',
@@ -174,6 +177,22 @@ export default function Admin({ session }) {
     setInviteEmail('')
     setInviting(false)
     setTimeout(() => setInviteSent(false), 4000)
+  }
+
+  async function updateUser() {
+    if (!editingUser) return
+    await supabase.from('profiles').update({
+      full_name: editName,
+      role: editRole,
+      avatar_initials: editName.trim().split(' ').map(w => w[0]).join('').toUpperCase().substring(0, 2)
+    }).eq('id', editingUser.id)
+    setEditingUser(null)
+    loadAll()
+  }
+
+  async function deactivateUser(id) {
+    await supabase.from('profiles').update({ active: false }).eq('id', id)
+    loadAll()
   }
 
   const isOwnerAdmin = profile?.role === 'owner' || profile?.role === 'admin'
@@ -435,17 +454,49 @@ export default function Admin({ session }) {
               </div>
             )}
             {users.map(u => (
-              <div key={u.id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 0',borderBottom:'0.5px solid #f0f0f0'}}>
-                <div className="avatar" style={{width:34,height:34,fontSize:12,background:'#E6F1FB',color:'#0C447C'}}>
-                  {u.avatar_initials || u.full_name?.charAt(0)}
-                </div>
-                <div style={{flex:1}}>
-                  <div style={{fontSize:13,fontWeight:500}}>{u.full_name}</div>
-                  <div style={{fontSize:11,color:'#888'}}>{u.role}</div>
-                </div>
-                <span style={{background:'#E6F1FB',color:'#185FA5',fontSize:10,padding:'3px 8px',borderRadius:20}}>
-                  {u.role}
-                </span>
+              <div key={u.id} style={{borderBottom:'0.5px solid #f0f0f0'}}>
+                {editingUser?.id === u.id ? (
+                  <div style={{padding:'10px 0'}}>
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
+                      <div>
+                        <label className="form-label">Full name</label>
+                        <input className="form-input" value={editName} onChange={e=>setEditName(e.target.value)}/>
+                      </div>
+                      <div>
+                        <label className="form-label">Role</label>
+                        <select className="form-input" value={editRole} onChange={e=>setEditRole(e.target.value)}>
+                          <option value="owner">Owner</option>
+                          <option value="admin">Admin</option>
+                          <option value="caretaker">Caretaker</option>
+                          <option value="contractor">Contractor</option>
+                          <option value="viewer">Viewer</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div style={{display:'flex',gap:7}}>
+                      <button onClick={updateUser} style={{flex:1,padding:'8px',borderRadius:8,border:'none',background:'#1A4F8A',color:'#fff',fontSize:12,cursor:'pointer',fontFamily:'inherit',fontWeight:500}}>Save</button>
+                      <button onClick={()=>setEditingUser(null)} style={{flex:1,padding:'8px',borderRadius:8,border:'0.5px solid #ddd',background:'none',color:'#666',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>Cancel</button>
+                      {isOwner && u.id !== session.user.id && (
+                        <button onClick={()=>{ if(window.confirm('Deactivate this user?')) deactivateUser(u.id) }} style={{padding:'8px 12px',borderRadius:8,border:'0.5px solid #ddd',background:'#FCEBEB',color:'#A32D2D',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>Remove</button>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{display:'flex',alignItems:'center',gap:10,padding:'10px 0'}}>
+                    <div className="avatar" style={{width:34,height:34,fontSize:12,background:'#E6F1FB',color:'#0C447C'}}>
+                      {u.avatar_initials || u.full_name?.charAt(0)}
+                    </div>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:13,fontWeight:500}}>{u.full_name}</div>
+                      <div style={{fontSize:11,color:'#888'}}>{u.role}</div>
+                    </div>
+                    {isOwnerAdmin && (
+                      <button onClick={()=>{ setEditingUser(u); setEditName(u.full_name); setEditRole(u.role) }} style={{padding:'5px 10px',borderRadius:6,border:'0.5px solid #ddd',background:'#f8f8f8',color:'#555',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
+                        Edit
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </>
