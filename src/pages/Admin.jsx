@@ -51,6 +51,7 @@ export default function Admin({ session }) {
   const [inviteRole, setInviteRole] = useState('caretaker')
   const [inviting, setInviting] = useState(false)
   const [inviteSent, setInviteSent] = useState(false)
+  const [inviteError, setInviteError] = useState('')
   const [editingUser, setEditingUser] = useState(null)
   const [editName, setEditName] = useState('')
   const [editRole, setEditRole] = useState('')
@@ -160,23 +161,37 @@ export default function Admin({ session }) {
   async function inviteUser() {
     if (!inviteEmail.trim()) return
     setInviting(true)
-    const { error } = await supabase.auth.admin.inviteUserByEmail(inviteEmail, {
-      data: { role: inviteRole }
+    setInviteError('')
+
+    // Send magic link — crew clicks it, then creates a password on the login screen
+    const { error } = await supabase.auth.signInWithOtp({
+      email: inviteEmail,
+      options: {
+        emailRedirectTo: window.location.origin,
+        shouldCreateUser: true,
+        data: { role: inviteRole }
+      }
     })
+
     if (error) {
-      // Fallback — send magic link
-      await supabase.auth.signInWithOtp({
-        email: inviteEmail,
-        options: {
-          emailRedirectTo: window.location.origin,
-          data: { role: inviteRole }
-        }
-      })
+      setInviteError(error.message)
+      setInviting(false)
+      return
     }
+
+    // Pre-create profile so they show up in Users immediately
+    // (will be overwritten when they actually sign in)
+    const { data: existing } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', inviteEmail)
+      .maybeSingle()
+
     setInviteSent(true)
     setInviteEmail('')
     setInviting(false)
-    setTimeout(() => setInviteSent(false), 4000)
+    setTimeout(() => setInviteSent(false), 5000)
+    loadAll()
   }
 
   async function updateUser() {
@@ -442,9 +457,14 @@ export default function Admin({ session }) {
                     <option value="viewer">Viewer</option>
                   </select>
                 </div>
+                {inviteError && (
+                  <div style={{background:'#FCEBEB',borderRadius:8,padding:10,fontSize:12,color:'#A32D2D',marginBottom:8}}>
+                    ⚠ {inviteError}
+                  </div>
+                )}
                 {inviteSent ? (
                   <div style={{background:'#EAF3DE',borderRadius:8,padding:10,fontSize:12,color:'#3B6D11'}}>
-                    ✓ Invite sent to {inviteEmail}
+                    ✓ Magic link sent — tell them to check their email and click the link, then come back to the app and create a password.
                   </div>
                 ) : (
                   <button className="btn btn-primary" style={{marginBottom:0}} onClick={inviteUser} disabled={inviting||!inviteEmail.trim()}>
