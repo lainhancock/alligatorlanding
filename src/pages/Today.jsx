@@ -119,9 +119,15 @@ export default function Today({ session }) {
     loadTaskComments(selected.id)
   }
 
-  async function deleteTaskComment(id) {
+  async function deleteTaskComment(id, occurrenceId) {
     await supabase.from('task_occurrence_comments').delete().eq('id', id)
-    loadTaskComments(selected.id)
+    loadTaskComments(occurrenceId)
+  }
+
+  async function deleteTaskMedia(id, path, occurrenceId) {
+    await supabase.storage.from('task-photos').remove([path])
+    await supabase.from('task_photos').delete().eq('id', id)
+    loadTaskMedia(occurrenceId)
   }
 
   async function uploadTaskMedia(e) {
@@ -256,10 +262,11 @@ export default function Today({ session }) {
         {taskMedia.length > 0 && (
           <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:6,marginBottom:8}}>
             {taskMedia.map(m => (
-              <div key={m.id} style={{aspectRatio:'1',borderRadius:8,overflow:'hidden',background:'#f0f0f0'}}>
+              <div key={m.id} style={{aspectRatio:'1',borderRadius:8,overflow:'hidden',background:'#f0f0f0',position:'relative'}}>
                 {m.file_type==='video'
                   ? <div style={{width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center',background:'#1a1a1a',flexDirection:'column',gap:4}}><span style={{fontSize:20}}>▶</span><span style={{fontSize:9,color:'#aaa'}}>VIDEO</span></div>
                   : m.url ? <img src={m.url} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/> : null}
+                <button onClick={()=>{ if(window.confirm('Delete this photo?')) deleteTaskMedia(m.id, m.storage_path, selected.id) }} style={{position:'absolute',top:3,right:3,width:20,height:20,borderRadius:'50%',border:'none',background:'rgba(0,0,0,0.6)',color:'#fff',fontSize:11,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',lineHeight:1}}>×</button>
               </div>
             ))}
           </div>
@@ -288,7 +295,7 @@ export default function Today({ session }) {
                   <span style={{fontSize:11,fontWeight:500,color:'#333'}}>{c.created_profile?.full_name || 'Unknown'}</span>
                   <span style={{fontSize:10,color:'#aaa'}}>{format(new Date(c.created_at),'MMM d · h:mm a')}</span>
                   {(c.created_by === session.user.id || profile?.role === 'owner' || profile?.role === 'admin') && (
-                    <button onClick={()=>deleteTaskComment(c.id)} style={{marginLeft:'auto',padding:'2px 7px',borderRadius:6,border:'0.5px solid #ddd',background:'#FCEBEB',color:'#A32D2D',fontSize:10,cursor:'pointer',fontFamily:'inherit'}}>Delete</button>
+                    <button onClick={()=>deleteTaskComment(c.id, selected.id)} style={{marginLeft:'auto',padding:'2px 7px',borderRadius:6,border:'0.5px solid #ddd',background:'#FCEBEB',color:'#A32D2D',fontSize:10,cursor:'pointer',fontFamily:'inherit'}}>Delete</button>
                   )}
                 </div>
                 <div style={{fontSize:12,color:'#444',lineHeight:1.5,paddingLeft:29}}>{c.comment_text}</div>
