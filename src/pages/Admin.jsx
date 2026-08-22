@@ -148,7 +148,7 @@ export default function Admin({ session }) {
   }
 
   async function updateTask() {
-    await supabase.from('tasks').update({
+    const { data, error } = await supabase.from('tasks').update({
       title: taskEditForm.title,
       instructions: taskEditForm.instructions,
       frequency: taskEditForm.frequency,
@@ -156,12 +156,12 @@ export default function Admin({ session }) {
       priority: taskEditForm.priority,
       photo_required: taskEditForm.photo_required,
       assigned_to_name: taskEditForm.assigned_to_name,
-    }).eq('id', selectedTask.id)
+    }).eq('id', selectedTask.id).select()
+    if (error) { alert('Save error: ' + error.message); return }
     setEditingTask(false)
     loadAll()
-    // Refresh selectedTask
-    const { data } = await supabase.from('tasks').select('*, category:categories(*), asset:assets(*)').eq('id', selectedTask.id).single()
-    if (data) setSelectedTask(data)
+    const { data: refreshed } = await supabase.from('tasks').select('*, category:categories(*), asset:assets(*)').eq('id', selectedTask.id).single()
+    if (refreshed) setSelectedTask(refreshed)
   }
 
   async function softDeleteTask(id, title) {
