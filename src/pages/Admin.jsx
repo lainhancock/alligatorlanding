@@ -157,6 +157,10 @@ export default function Admin({ session }) {
       photo_required: taskEditForm.photo_required,
       updated_at: new Date().toISOString()
     }).eq('id', selectedTask.id).select()
+    // Save assignee name separately if column exists
+    if (!error && taskEditForm.assigned_to_name) {
+      await supabase.from('tasks').update({ assigned_to_name: taskEditForm.assigned_to_name }).eq('id', selectedTask.id)
+    }
     if (error) { alert('Save error: ' + error.message); return }
     setEditingTask(false)
     loadAll()
@@ -337,7 +341,7 @@ export default function Admin({ session }) {
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
           <div><h1 style={{fontSize:15}}>{selectedTask.title}</h1><p>{selectedTask.category?.name} · {selectedTask.asset?.name || '—'}</p></div>
           {isOwnerAdmin && !editingTask && (
-            <button onClick={() => { setEditingTask(true); setTaskEditForm({ title: selectedTask.title, instructions: selectedTask.instructions||'', frequency: selectedTask.frequency||'daily', frequency_day: selectedTask.frequency_day||'', priority: selectedTask.priority||'medium', photo_required: selectedTask.photo_required||false, assigned_to_name: selectedTask.assigned_to_name||'Unassigned' }) }} style={{background:'rgba(255,255,255,0.2)',border:'none',color:'#fff',padding:'6px 12px',borderRadius:6,fontSize:12,cursor:'pointer'}}>
+            <button onClick={() => { setEditingTask(true); setTaskEditForm({ title: selectedTask.title, instructions: selectedTask.instructions||'', frequency: selectedTask.frequency||'daily', frequency_day: selectedTask.frequency_day||'', priority: selectedTask.priority||'normal', photo_required: selectedTask.photo_required||false, assigned_to_name: selectedTask.assigned_to_name||'Unassigned' }) }} style={{background:'rgba(255,255,255,0.2)',border:'none',color:'#fff',padding:'6px 12px',borderRadius:6,fontSize:12,cursor:'pointer'}}>
               Edit
             </button>
           )}
@@ -377,10 +381,15 @@ export default function Admin({ session }) {
               <div className="form-group" style={{marginBottom:0}}>
                 <label className="form-label">Priority</label>
                 <select className="form-input" value={taskEditForm.priority} onChange={e=>setTaskEditForm({...taskEditForm,priority:e.target.value})}>
-                  <option value="low">Low</option>
-                  <option value="medium">Medium</option>
+                  <option value="normal">Normal</option>
                   <option value="high">High</option>
                   <option value="critical">Critical</option>
+                </select>
+              </div>
+              <div className="form-group" style={{marginBottom:0}}>
+                <label className="form-label">Assign to</label>
+                <select className="form-input" value={taskEditForm.assigned_to_name} onChange={e=>setTaskEditForm({...taskEditForm,assigned_to_name:e.target.value})}>
+                  {CREW_LIST.map(c=><option key={c}>{c}</option>)}
                 </select>
               </div>
 
