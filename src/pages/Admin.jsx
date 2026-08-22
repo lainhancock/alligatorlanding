@@ -155,7 +155,7 @@ export default function Admin({ session }) {
       frequency_day: taskEditForm.frequency_day,
       priority: taskEditForm.priority,
       photo_required: taskEditForm.photo_required,
-      assigned_to_name: taskEditForm.assigned_to_name,
+      updated_at: new Date().toISOString()
     }).eq('id', selectedTask.id).select()
     if (error) { alert('Save error: ' + error.message); return }
     setEditingTask(false)
@@ -383,12 +383,7 @@ export default function Admin({ session }) {
                   <option value="critical">Critical</option>
                 </select>
               </div>
-              <div className="form-group" style={{marginBottom:0}}>
-                <label className="form-label">Assign to</label>
-                <select className="form-input" value={taskEditForm.assigned_to_name} onChange={e=>setTaskEditForm({...taskEditForm,assigned_to_name:e.target.value})}>
-                  {CREW_LIST.map(c=><option key={c}>{c}</option>)}
-                </select>
-              </div>
+
             </div>
             <div className="form-group">
               <label className="form-label">Photo required for sign-off?</label>
