@@ -19,7 +19,7 @@ const ASSETS_LIST = [
   'Hangar/Shop landscaping','Pastures','Roads','Ponds',
   'High fence — full perimeter','Rifle range','Property'
 ]
-const CREW_LIST = ['Unassigned','Lain','Clare','Juan','Lane','Scott','Jacob','Trace','Garrett','Delaney','Jake']
+const CREW_LIST = ['Unassigned','Lain Hancock','Clare Bambury','Scott Holcomb','Juan','Lane','Jacob','Trace','Garrett','Delaney','Jake']
 const FREQUENCIES = [
   { value:'daily', label:'Daily' },
   { value:'weekly', label:'Weekly' },
@@ -148,6 +148,19 @@ export default function Admin({ session }) {
   }
 
   async function updateTask() {
+    // Look up profile ID from name
+    let assigneeId = selectedTask.default_assignee_id
+    if (taskEditForm.assigned_to_name && taskEditForm.assigned_to_name !== 'Unassigned') {
+      const { data: profileMatch } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('full_name', taskEditForm.assigned_to_name)
+        .maybeSingle()
+      if (profileMatch) assigneeId = profileMatch.id
+    } else if (taskEditForm.assigned_to_name === 'Unassigned') {
+      assigneeId = null
+    }
+
     const { data, error } = await supabase.from('tasks').update({
       title: taskEditForm.title,
       instructions: taskEditForm.instructions,
@@ -155,12 +168,10 @@ export default function Admin({ session }) {
       frequency_day: taskEditForm.frequency_day,
       priority: taskEditForm.priority,
       photo_required: taskEditForm.photo_required,
+      assigned_to_name: taskEditForm.assigned_to_name,
+      default_assignee_id: assigneeId,
       updated_at: new Date().toISOString()
     }).eq('id', selectedTask.id).select()
-    // Save assignee name separately if column exists
-    if (!error && taskEditForm.assigned_to_name) {
-      await supabase.from('tasks').update({ assigned_to_name: taskEditForm.assigned_to_name }).eq('id', selectedTask.id)
-    }
     if (error) { alert('Save error: ' + error.message); return }
     setEditingTask(false)
     loadAll()
