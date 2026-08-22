@@ -119,6 +119,11 @@ export default function Today({ session }) {
     loadTaskComments(selected.id)
   }
 
+  async function deleteTaskComment(id) {
+    await supabase.from('task_occurrence_comments').delete().eq('id', id)
+    loadTaskComments(selected.id)
+  }
+
   async function uploadTaskMedia(e) {
     const files = Array.from(e.target.files)
     if (!files.length || !selected) return
@@ -281,6 +286,9 @@ export default function Today({ session }) {
                   </div>
                   <span style={{fontSize:11,fontWeight:500,color:'#333'}}>{c.created_profile?.full_name || 'Unknown'}</span>
                   <span style={{fontSize:10,color:'#aaa'}}>{format(new Date(c.created_at),'MMM d · h:mm a')}</span>
+                  {(c.created_by === session.user.id || profile?.role === 'owner' || profile?.role === 'admin') && (
+                    <button onClick={()=>deleteTaskComment(c.id)} style={{marginLeft:'auto',padding:'2px 7px',borderRadius:6,border:'0.5px solid #ddd',background:'#FCEBEB',color:'#A32D2D',fontSize:10,cursor:'pointer',fontFamily:'inherit'}}>Delete</button>
+                  )}
                 </div>
                 <div style={{fontSize:12,color:'#444',lineHeight:1.5,paddingLeft:29}}>{c.comment_text}</div>
               </div>
