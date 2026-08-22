@@ -46,6 +46,8 @@ export default function Admin({ session }) {
   const [loading, setLoading] = useState(true)
   const [view, setView] = useState('list') // list | new-task | task-detail
   const [selectedTask, setSelectedTask] = useState(null)
+  const [editingTask, setEditingTask] = useState(false)
+  const [taskEditForm, setTaskEditForm] = useState({})
   const [taskFilter, setTaskFilter] = useState('all')
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState('caretaker')
@@ -143,6 +145,23 @@ export default function Admin({ session }) {
   async function toggleTaskActive(id, active) {
     await supabase.from('tasks').update({ active: !active }).eq('id', id)
     loadAll()
+  }
+
+  async function updateTask() {
+    await supabase.from('tasks').update({
+      title: taskEditForm.title,
+      instructions: taskEditForm.instructions,
+      frequency: taskEditForm.frequency,
+      frequency_day: taskEditForm.frequency_day,
+      priority: taskEditForm.priority,
+      photo_required: taskEditForm.photo_required,
+      assigned_to_name: taskEditForm.assigned_to_name,
+    }).eq('id', selectedTask.id)
+    setEditingTask(false)
+    loadAll()
+    // Refresh selectedTask
+    const { data } = await supabase.from('tasks').select('*, category:categories(*), asset:assets(*)').eq('id', selectedTask.id).single()
+    if (data) setSelectedTask(data)
   }
 
   async function softDeleteTask(id, title) {
@@ -314,42 +333,110 @@ export default function Admin({ session }) {
   if (view === 'task-detail' && selectedTask) return (
     <div>
       <div className="topbar">
-        <button onClick={() => setView('list')} style={{background:'none',border:'none',color:'#fff',fontSize:13,cursor:'pointer',marginBottom:10,display:'flex',alignItems:'center',gap:4}}>← Back</button>
-        <h1>{selectedTask.title}</h1>
-        <p>{selectedTask.category?.name} · {selectedTask.asset?.name || '—'}</p>
+        <button onClick={() => { setView('list'); setEditingTask(false) }} style={{background:'none',border:'none',color:'#fff',fontSize:13,cursor:'pointer',marginBottom:10,display:'flex',alignItems:'center',gap:4}}>← Back</button>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+          <div><h1 style={{fontSize:15}}>{selectedTask.title}</h1><p>{selectedTask.category?.name} · {selectedTask.asset?.name || '—'}</p></div>
+          {isOwnerAdmin && !editingTask && (
+            <button onClick={() => { setEditingTask(true); setTaskEditForm({ title: selectedTask.title, instructions: selectedTask.instructions||'', frequency: selectedTask.frequency||'daily', frequency_day: selectedTask.frequency_day||'', priority: selectedTask.priority||'medium', photo_required: selectedTask.photo_required||false, assigned_to_name: selectedTask.assigned_to_name||'Unassigned' }) }} style={{background:'rgba(255,255,255,0.2)',border:'none',color:'#fff',padding:'6px 12px',borderRadius:6,fontSize:12,cursor:'pointer'}}>
+              Edit
+            </button>
+          )}
+        </div>
       </div>
       <div className="content">
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
-          <div style={{background:'#f8f8f8',borderRadius:8,padding:9}}><div style={{fontSize:10,color:'#888'}}>Frequency</div><div style={{fontSize:12,fontWeight:500,marginTop:2}}>{selectedTask.frequency}</div></div>
-          <div style={{background:'#f8f8f8',borderRadius:8,padding:9}}><div style={{fontSize:10,color:'#888'}}>Priority</div><div style={{fontSize:12,fontWeight:500,marginTop:2}}>{selectedTask.priority}</div></div>
-          <div style={{background:'#f8f8f8',borderRadius:8,padding:9}}><div style={{fontSize:10,color:'#888'}}>Photo required</div><div style={{fontSize:12,fontWeight:500,marginTop:2}}>{selectedTask.photo_required?'Yes':'No'}</div></div>
-          <div style={{background:'#f8f8f8',borderRadius:8,padding:9}}><div style={{fontSize:10,color:'#888'}}>Status</div><div style={{fontSize:12,fontWeight:500,marginTop:2,color:selectedTask.active?'#3B6D11':'#888'}}>{selectedTask.active?'Active':'Inactive'}</div></div>
-        </div>
-        {selectedTask.instructions && (
-          <div style={{background:'#f8f8f8',borderRadius:8,padding:12,marginBottom:12}}>
-            <p style={{fontSize:11,fontWeight:500,color:'#555',marginBottom:4}}>Instructions</p>
-            <p style={{fontSize:13,color:'#333',lineHeight:1.55}}>{selectedTask.instructions}</p>
-          </div>
-        )}
-        {isOwnerAdmin && (
-          <div style={{display:'flex',gap:8,marginBottom:7}}>
-            <button className="btn" style={{background:selectedTask.active?'#FCEBEB':'#EAF3DE',color:selectedTask.active?'#A32D2D':'#3B6D11',marginBottom:0,flex:1}}
-              onClick={() => { toggleTaskActive(selectedTask.id, selectedTask.active); setView('list') }}>
-              {selectedTask.active ? 'Deactivate' : 'Reactivate'}
-            </button>
-            <button className="btn" style={{background:'#FAEEDA',color:'#854F0B',marginBottom:0,flex:1}}
-              onClick={() => { if(window.confirm('Archive this task?')) softDeleteTask(selectedTask.id, selectedTask.title) }}>
-              📦 Archive
-            </button>
-            {isOwner && (
-              <button className="btn" style={{background:'#FCEBEB',color:'#A32D2D',marginBottom:0,flex:1}}
-                onClick={() => { if(window.confirm('Permanently delete? This cannot be undone.')) permanentDeleteTask(selectedTask.id) }}>
-                🗑 Delete
-              </button>
+        {editingTask ? (
+          <>
+            <div className="form-group">
+              <label className="form-label">Title</label>
+              <input className="form-input" value={taskEditForm.title} onChange={e=>setTaskEditForm({...taskEditForm,title:e.target.value})}/>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Instructions</label>
+              <textarea className="form-input" rows={4} value={taskEditForm.instructions} onChange={e=>setTaskEditForm({...taskEditForm,instructions:e.target.value})} placeholder="Step by step instructions for crew…" style={{resize:'none'}}/>
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
+              <div className="form-group" style={{marginBottom:0}}>
+                <label className="form-label">Frequency</label>
+                <select className="form-input" value={taskEditForm.frequency} onChange={e=>setTaskEditForm({...taskEditForm,frequency:e.target.value})}>
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="biweekly">Biweekly</option>
+                  <option value="monthly">Monthly</option>
+                  <option value="seasonal">Seasonal</option>
+                  <option value="as_needed">As needed</option>
+                </select>
+              </div>
+              {taskEditForm.frequency === 'weekly' && (
+                <div className="form-group" style={{marginBottom:0}}>
+                  <label className="form-label">Day of week</label>
+                  <select className="form-input" value={taskEditForm.frequency_day} onChange={e=>setTaskEditForm({...taskEditForm,frequency_day:e.target.value})}>
+                    {['monday','tuesday','wednesday','thursday','friday','saturday','sunday'].map(d=><option key={d} value={d}>{d.charAt(0).toUpperCase()+d.slice(1)}</option>)}
+                  </select>
+                </div>
+              )}
+              <div className="form-group" style={{marginBottom:0}}>
+                <label className="form-label">Priority</label>
+                <select className="form-input" value={taskEditForm.priority} onChange={e=>setTaskEditForm({...taskEditForm,priority:e.target.value})}>
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                  <option value="critical">Critical</option>
+                </select>
+              </div>
+              <div className="form-group" style={{marginBottom:0}}>
+                <label className="form-label">Assign to</label>
+                <select className="form-input" value={taskEditForm.assigned_to_name} onChange={e=>setTaskEditForm({...taskEditForm,assigned_to_name:e.target.value})}>
+                  {CREW_LIST.map(c=><option key={c}>{c}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Photo required for sign-off?</label>
+              <div style={{display:'flex',gap:8}}>
+                {[true,false].map(v=>(
+                  <button key={String(v)} onClick={()=>setTaskEditForm({...taskEditForm,photo_required:v})} style={{flex:1,padding:9,borderRadius:8,fontFamily:'inherit',cursor:'pointer',fontSize:12,border:`${taskEditForm.photo_required===v?'1.5px':'0.5px'} solid ${taskEditForm.photo_required===v?'#3B6D11':'#ddd'}`,background:taskEditForm.photo_required===v?'#EAF3DE':'none',color:taskEditForm.photo_required===v?'#3B6D11':'#666',fontWeight:taskEditForm.photo_required===v?600:400}}>{v?'Yes — required':'No'}</button>
+                ))}
+              </div>
+            </div>
+            <button className="btn btn-primary" onClick={updateTask}>Save changes</button>
+            <button className="btn btn-secondary" onClick={()=>setEditingTask(false)}>Cancel</button>
+          </>
+        ) : (
+          <>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
+              <div style={{background:'#f8f8f8',borderRadius:8,padding:9}}><div style={{fontSize:10,color:'#888'}}>Frequency</div><div style={{fontSize:12,fontWeight:500,marginTop:2}}>{selectedTask.frequency}{selectedTask.frequency_day ? ` — ${selectedTask.frequency_day}` : ''}</div></div>
+              <div style={{background:'#f8f8f8',borderRadius:8,padding:9}}><div style={{fontSize:10,color:'#888'}}>Priority</div><div style={{fontSize:12,fontWeight:500,marginTop:2}}>{selectedTask.priority}</div></div>
+              <div style={{background:'#f8f8f8',borderRadius:8,padding:9}}><div style={{fontSize:10,color:'#888'}}>Assigned to</div><div style={{fontSize:12,fontWeight:500,marginTop:2}}>{selectedTask.assigned_to_name||'Unassigned'}</div></div>
+              <div style={{background:'#f8f8f8',borderRadius:8,padding:9}}><div style={{fontSize:10,color:'#888'}}>Photo required</div><div style={{fontSize:12,fontWeight:500,marginTop:2}}>{selectedTask.photo_required?'Yes':'No'}</div></div>
+              <div style={{background:'#f8f8f8',borderRadius:8,padding:9}}><div style={{fontSize:10,color:'#888'}}>Status</div><div style={{fontSize:12,fontWeight:500,marginTop:2,color:selectedTask.active?'#3B6D11':'#888'}}>{selectedTask.active?'Active':'Inactive'}</div></div>
+            </div>
+            {selectedTask.instructions && (
+              <div style={{background:'#f8f8f8',borderRadius:8,padding:12,marginBottom:12}}>
+                <p style={{fontSize:11,fontWeight:500,color:'#555',marginBottom:4}}>Instructions</p>
+                <p style={{fontSize:13,color:'#333',lineHeight:1.55}}>{selectedTask.instructions}</p>
+              </div>
             )}
-          </div>
+            {isOwnerAdmin && (
+              <div style={{display:'flex',gap:8,marginBottom:7}}>
+                <button className="btn" style={{background:selectedTask.active?'#FCEBEB':'#EAF3DE',color:selectedTask.active?'#A32D2D':'#3B6D11',marginBottom:0,flex:1}}
+                  onClick={() => { toggleTaskActive(selectedTask.id, selectedTask.active); setView('list') }}>
+                  {selectedTask.active ? 'Deactivate' : 'Reactivate'}
+                </button>
+                <button className="btn" style={{background:'#FAEEDA',color:'#854F0B',marginBottom:0,flex:1}}
+                  onClick={() => { if(window.confirm('Archive this task?')) softDeleteTask(selectedTask.id, selectedTask.title) }}>
+                  📦 Archive
+                </button>
+                {isOwner && (
+                  <button className="btn" style={{background:'#FCEBEB',color:'#A32D2D',marginBottom:0,flex:1}}
+                    onClick={() => { if(window.confirm('Permanently delete? This cannot be undone.')) permanentDeleteTask(selectedTask.id) }}>
+                    🗑 Delete
+                  </button>
+                )}
+              </div>
+            )}
+            <button className="btn btn-secondary" onClick={() => setView('list')}>Back to tasks</button>
+          </>
         )}
-        <button className="btn btn-secondary" onClick={() => setView('list')}>Back to tasks</button>
       </div>
     </div>
   )
