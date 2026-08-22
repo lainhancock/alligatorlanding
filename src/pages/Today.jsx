@@ -358,30 +358,35 @@ export default function Today({ session }) {
 
         {loading ? (
           <p style={{textAlign:'center',color:'#888',padding:'32px 0',fontSize:13}}>Loading tasks…</p>
-        ) : tasks.length === 0 ? (
+        ) : overdue.length === 0 && pending.length === 0 && filter !== 'done' ? (
           <div style={{textAlign:'center',padding:'48px 0'}}>
             <p style={{fontSize:32,marginBottom:10}}>✅</p>
             <p style={{fontSize:15,fontWeight:600,color:'#333',marginBottom:4}}>All caught up!</p>
-            <p style={{fontSize:13,color:'#888'}}>No tasks due today.</p>
+            <p style={{fontSize:13,color:'#888'}}>{done.length > 0 ? `${done.length} task${done.length!==1?'s':''} completed today.` : 'No tasks due today.'}</p>
+            {done.length > 0 && (
+              <button onClick={() => setFilter('done')} style={{marginTop:8,padding:'6px 16px',borderRadius:20,border:'0.5px solid #ddd',background:'none',color:'#888',fontSize:12,cursor:'pointer',fontFamily:'inherit'}}>
+                View completed
+              </button>
+            )}
           </div>
         ) : (
           <>
             {(filter === 'all' || filter === 'overdue') && overdue.length > 0 && (
               <>
                 <div className="section-label">Overdue</div>
-                {overdue.map(t => <TaskCard key={t.id} task={t} onClick={() => setSelected(t)} />)}
+                {overdue.map(t => <TaskCard key={t.id} task={t} onClick={() => openTask(t)} />)}
               </>
             )}
             {(filter === 'all' || filter === 'pending') && pending.length > 0 && (
               <>
                 <div className="section-label">Today</div>
-                {pending.map(t => <TaskCard key={t.id} task={t} onClick={() => setSelected(t)} />)}
+                {pending.map(t => <TaskCard key={t.id} task={t} onClick={() => openTask(t)} />)}
               </>
             )}
-            {(filter === 'all' || filter === 'done') && done.length > 0 && (
+            {filter === 'done' && done.length > 0 && (
               <>
-                <div className="section-label">Completed</div>
-                {done.map(t => <TaskCard key={t.id} task={t} onClick={() => setSelected(t)} />)}
+                <div className="section-label">Completed today ({done.length})</div>
+                {done.map(t => <TaskCard key={t.id} task={t} onClick={() => openTask(t)} />)}
               </>
             )}
           </>
