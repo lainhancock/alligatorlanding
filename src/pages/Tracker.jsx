@@ -193,7 +193,7 @@ function MediaPanel({ entityType, entityId, session }) {
 }
 
 // ── COMMENT SECTION ────────────────────────────────────────
-function CommentSection({ entityType, entityId, session, tableName, fkField }) {
+function CommentSection({ entityType, entityId, session, tableName, fkField, isOwnerAdmin }) {
   const [comments, setComments] = useState([])
   const [text, setText] = useState('')
 
@@ -211,6 +211,11 @@ function CommentSection({ entityType, entityId, session, tableName, fkField }) {
     loadComments()
   }
 
+  async function deleteComment(id) {
+    await supabase.from(tableName).delete().eq('id', id)
+    loadComments()
+  }
+
   return (
     <div>
       <div className="section-label">Comments ({comments.length})</div>
@@ -222,9 +227,11 @@ function CommentSection({ entityType, entityId, session, tableName, fkField }) {
               <div style={{width:22,height:22,borderRadius:'50%',background:'#E6F1FB',color:'#0C447C',display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:600,flexShrink:0}}>{c.created_profile?.avatar_initials||'?'}</div>
               <span style={{fontSize:11,fontWeight:500,color:'#333'}}>{c.created_profile?.full_name||'Unknown'}</span>
               <span style={{fontSize:10,color:'#aaa'}}>{format(new Date(c.created_at),'MMM d · h:mm a')}</span>
+              {(c.created_by === session.user.id || isOwnerAdmin) && (
+                <button onClick={()=>deleteComment(c.id)} style={{marginLeft:'auto',padding:'2px 7px',borderRadius:6,border:'0.5px solid #ddd',background:'#FCEBEB',color:'#A32D2D',fontSize:10,cursor:'pointer',fontFamily:'inherit'}}>Delete</button>
+              )}
             </div>
             <div style={{fontSize:12,color:'#444',lineHeight:1.5,paddingLeft:29}}>{c.comment_text}</div>
-
           </div>
         ))}
       </div>
@@ -232,7 +239,6 @@ function CommentSection({ entityType, entityId, session, tableName, fkField }) {
         <input className="form-input" style={{flex:1}} value={text} onChange={e=>setText(e.target.value)} placeholder="Add a comment…" onKeyDown={e=>e.key==='Enter'&&addComment()}/>
         <button onClick={addComment} style={{padding:'9px 14px',borderRadius:8,border:'none',background:'#1A4F8A',color:'#fff',fontSize:12,cursor:'pointer',fontFamily:'inherit',fontWeight:500,flexShrink:0}}>Post</button>
       </div>
-
     </div>
   )
 }
@@ -506,7 +512,7 @@ export default function Tracker({ session }) {
             <button className="btn btn-success" style={{marginBottom:0}} onClick={()=>updateWOStatus(selectedWO.id,'done')}>✓ Complete</button>
           </div>
           <button className="btn" style={{background:'#FAEEDA',color:'#854F0B',marginBottom:12}} onClick={()=>updateWOStatus(selectedWO.id,'blocked')}>⚠ Mark blocked</button>
-          <CommentSection entityType="work_order" entityId={selectedWO.id} session={session} tableName="work_order_comments" fkField="work_order_id"/>
+          <CommentSection entityType="work_order" entityId={selectedWO.id} session={session} tableName="work_order_comments" fkField="work_order_id" isOwnerAdmin={isOwnerAdmin}/>
           <button className="btn btn-secondary" onClick={()=>{ setSelectedWO(null); setView('list') }}>Back to list</button>
         </div>
       </div>
@@ -535,7 +541,7 @@ export default function Tracker({ session }) {
         </div>
         <div className="section-label">Photos & videos</div>
         <MediaPanel entityType="punch_list" entityId={selectedPunch.id} session={session}/>
-        <CommentSection entityType="punch_list" entityId={selectedPunch.id} session={session} tableName="punch_list_comments" fkField="punch_list_id"/>
+        <CommentSection entityType="punch_list" entityId={selectedPunch.id} session={session} tableName="punch_list_comments" fkField="punch_list_id" isOwnerAdmin={isOwnerAdmin}/>
         <button className="btn btn-secondary" onClick={()=>{ setSelectedPunch(null); setView('list'); setTab('punch') }}>Back to list</button>
       </div>
     </div>
