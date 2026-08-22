@@ -233,6 +233,7 @@ export default function Today({ session }) {
         <div style={{background:'#f8f8f8',borderRadius:8,padding:10,display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
           <div><p style={{fontSize:10,color:'#888'}}>Asset</p><p style={{fontSize:12,fontWeight:500}}>{selected.task?.asset?.name || '—'}</p></div>
           <div><p style={{fontSize:10,color:'#888'}}>Frequency</p><p style={{fontSize:12,fontWeight:500}}>{selected.task?.frequency}</p></div>
+          <div><p style={{fontSize:10,color:'#888'}}>Assigned to</p><p style={{fontSize:12,fontWeight:500}}>{selected.task?.assigned_to_name || selected.assigned_profile?.full_name || 'Unassigned'}</p></div>
           <div><p style={{fontSize:10,color:'#888'}}>Priority</p><p style={{fontSize:12,fontWeight:500}}>{selected.task?.priority || 'normal'}</p></div>
           <div><p style={{fontSize:10,color:'#888'}}>Photo req.</p><p style={{fontSize:12,fontWeight:500}}>{selected.task?.photo_required ? 'Yes' : 'No'}</p></div>
         </div>
