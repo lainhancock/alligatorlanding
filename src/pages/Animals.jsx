@@ -46,6 +46,12 @@ export default function Animals({ session }) {
     acquisition_date: '', purchase_price: '', source: '', notes: ''
   })
   const [isEditing, setIsEditing] = useState(false)
+  const [isBulk, setIsBulk] = useState(false)
+  const [bulkForm, setBulkForm] = useState({
+    species: 'Whitetail', sex: 'Unknown', quantity: 1,
+    acquisition_type: 'Purchased', acquisition_date: '',
+    purchase_price_each: '', source: '', tag_prefix: '', notes: ''
+  })
   const [statusForm, setStatusForm] = useState({ status: 'Active', status_date: '', status_notes: '' })
   const [showStatusChange, setShowStatusChange] = useState(false)
 
@@ -68,6 +74,44 @@ export default function Animals({ session }) {
       .eq('animal_id', animalId)
       .order('created_at', { ascending: false })
     if (data) setStatusLog(data)
+  }
+
+  async function saveBulk() {
+    const qty = parseInt(bulkForm.quantity) || 1
+    const records = []
+    for (let i = 1; i <= qty; i++) {
+      const tagNum = bulkForm.tag_prefix
+        ? `${bulkForm.tag_prefix}-${String(i).padStart(3,'0')}`
+        : null
+      records.push({
+        tag_number: tagNum,
+        species: bulkForm.species,
+        sex: bulkForm.sex,
+        acquisition_type: bulkForm.acquisition_type,
+        acquisition_date: bulkForm.acquisition_date || null,
+        purchase_price: bulkForm.purchase_price_each ? parseFloat(bulkForm.purchase_price_each) : null,
+        source: bulkForm.source || null,
+        notes: bulkForm.notes || null,
+        status: 'Active',
+        created_by: session.user.id,
+        updated_at: new Date().toISOString()
+      })
+    }
+    const { data: inserted } = await supabase.from('animal_inventory').insert(records).select()
+    if (inserted) {
+      const logs = inserted.map(a => ({
+        animal_id: a.id,
+        status: 'Active',
+        status_date: bulkForm.acquisition_date || new Date().toISOString().slice(0,10),
+        notes: bulkForm.acquisition_type === 'Purchased' ? `Purchased from ${bulkForm.source||'unknown'}` : 'Born on property',
+        logged_by: session.user.id
+      }))
+      await supabase.from('animal_status_log').insert(logs)
+    }
+    setBulkForm({ species:'Whitetail', sex:'Unknown', quantity:1, acquisition_type:'Purchased', acquisition_date:'', purchase_price_each:'', source:'', tag_prefix:'', notes:'' })
+    setIsBulk(false)
+    setView('list')
+    loadAll()
   }
 
   async function saveAnimal() {
@@ -166,6 +210,84 @@ export default function Animals({ session }) {
   const totalValue = animals.filter(a => a.purchase_price).reduce((sum, a) => sum + parseFloat(a.purchase_price||0), 0)
   const bornOnProperty = animals.filter(a => a.acquisition_type === 'Born on property').length
   const purchased = animals.filter(a => a.acquisition_type === 'Purchased').length
+
+  // ── BULK IMPORT VIEW ──────────────────────────────────────
+  if (view === 'form' && isBulk) return (
+    <div>
+      <div className="topbar" style={{background:'#2D5016'}}>
+        <button onClick={() => { setIsBulk(false); setView('list') }} style={{background:'none',border:'none',color:'#fff',fontSize:13,cursor:'pointer',marginBottom:10,display:'flex',alignItems:'center',gap:4}}>← Back</button>
+        <h1>Bulk import animals</h1>
+        <p>Creates individual records for each animal</p>
+      </div>
+      <div className="content">
+        <div style={{background:'#E6F1FB',borderRadius:8,padding:10,marginBottom:12,fontSize:12,color:'#185FA5'}}>
+          Each animal gets its own record. Tag numbers are assigned sequentially based on the prefix you provide (e.g. WH → WH-001, WH-002…). You can edit individual records later to update tags.
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
+          <div className="form-group" style={{marginBottom:0}}>
+            <label className="form-label">Species</label>
+            <select className="form-input" value={bulkForm.species} onChange={e=>setBulkForm({...bulkForm,species:e.target.value})}>
+              {SPECIES.map(s=><option key={s}>{s}</option>)}
+            </select>
+          </div>
+          <div className="form-group" style={{marginBottom:0}}>
+            <label className="form-label">Sex</label>
+            <select className="form-input" value={bulkForm.sex} onChange={e=>setBulkForm({...bulkForm,sex:e.target.value})}>
+              {SEX_OPTIONS.map(s=><option key={s}>{s}</option>)}
+            </select>
+          </div>
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
+          <div className="form-group" style={{marginBottom:0}}>
+            <label className="form-label">Quantity</label>
+            <input className="form-input" type="number" min="1" max="500" value={bulkForm.quantity} onChange={e=>setBulkForm({...bulkForm,quantity:e.target.value})} placeholder="e.g. 15"/>
+          </div>
+          <div className="form-group" style={{marginBottom:0}}>
+            <label className="form-label">Tag prefix (optional)</label>
+            <input className="form-input" value={bulkForm.tag_prefix} onChange={e=>setBulkForm({...bulkForm,tag_prefix:e.target.value})} placeholder="e.g. WH or AX"/>
+          </div>
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
+          <div className="form-group" style={{marginBottom:0}}>
+            <label className="form-label">Acquisition type</label>
+            <select className="form-input" value={bulkForm.acquisition_type} onChange={e=>setBulkForm({...bulkForm,acquisition_type:e.target.value})}>
+              {ACQ_TYPES.map(t=><option key={t}>{t}</option>)}
+            </select>
+          </div>
+          <div className="form-group" style={{marginBottom:0}}>
+            <label className="form-label">{bulkForm.acquisition_type === 'Purchased' ? 'Purchase date' : 'Birth date'}</label>
+            <input className="form-input" type="date" value={bulkForm.acquisition_date} onChange={e=>setBulkForm({...bulkForm,acquisition_date:e.target.value})}/>
+          </div>
+        </div>
+        {bulkForm.acquisition_type === 'Purchased' && (
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
+            <div className="form-group" style={{marginBottom:0}}>
+              <label className="form-label">Price per animal ($)</label>
+              <input className="form-input" type="number" value={bulkForm.purchase_price_each} onChange={e=>setBulkForm({...bulkForm,purchase_price_each:e.target.value})} placeholder="0.00"/>
+            </div>
+            <div className="form-group" style={{marginBottom:0}}>
+              <label className="form-label">Source / breeder</label>
+              <input className="form-input" value={bulkForm.source} onChange={e=>setBulkForm({...bulkForm,source:e.target.value})} placeholder="e.g. Texas Exotic Ranch"/>
+            </div>
+          </div>
+        )}
+        <div className="form-group">
+          <label className="form-label">Notes</label>
+          <textarea className="form-input" rows={2} value={bulkForm.notes} onChange={e=>setBulkForm({...bulkForm,notes:e.target.value})} placeholder="Any notes that apply to all animals in this group…" style={{resize:'none'}}/>
+        </div>
+        {bulkForm.quantity > 0 && bulkForm.tag_prefix && (
+          <div style={{background:'#EAF3DE',borderRadius:8,padding:10,marginBottom:12,fontSize:12,color:'#3B6D11'}}>
+            Will create {bulkForm.quantity} records tagged {bulkForm.tag_prefix}-001 through {bulkForm.tag_prefix}-{String(parseInt(bulkForm.quantity)).padStart(3,'0')}
+            {bulkForm.purchase_price_each && ` · Total cost: $${(parseFloat(bulkForm.purchase_price_each)*parseInt(bulkForm.quantity)).toLocaleString()}`}
+          </div>
+        )}
+        <button className="btn btn-primary" style={{background:'#2D5016'}} onClick={saveBulk} disabled={!bulkForm.species || !bulkForm.quantity}>
+          Import {bulkForm.quantity} {bulkForm.species} record{parseInt(bulkForm.quantity)!==1?'s':''}
+        </button>
+        <button className="btn btn-secondary" onClick={() => { setIsBulk(false); setView('list') }}>Cancel</button>
+      </div>
+    </div>
+  )
 
   // ── FORM VIEW ──────────────────────────────────────────────
   if (view === 'form') return (
@@ -431,9 +553,14 @@ export default function Animals({ session }) {
         })}
 
         {isEditor && (
-          <button className="btn btn-primary" style={{marginTop:4,background:'#2D5016'}} onClick={() => { resetForm(); setView('form') }}>
-            + Add animal
-          </button>
+          <div style={{display:'flex',gap:8,marginTop:4}}>
+            <button className="btn btn-primary" style={{flex:1,background:'#2D5016'}} onClick={() => { resetForm(); setIsBulk(false); setView('form') }}>
+              + Add animal
+            </button>
+            <button className="btn" style={{flex:1,background:'#EAF3DE',color:'#2D5016'}} onClick={() => { setIsBulk(true); setView('form') }}>
+              📋 Bulk import
+            </button>
+          </div>
         )}
       </div>
     </div>
