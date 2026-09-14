@@ -55,13 +55,23 @@ export default function Today({ session }) {
       .order('due_date', { ascending: true })
 
     if (occErr) { setError('Occurrences error: ' + occErr.message); setLoading(false); return }
-    if (!occurrences || occurrences.length === 0) { 
-      setError('Query returned 0 rows — today: ' + today + ' — session: ' + session.user.id)
-      setTasks([]); setLoading(false); return 
-    }
-    // Filter client-side to avoid date comparison issues
+    if (!occurrences || occurrences.length === 0) { setTasks([]); setLoading(false); return }
+    // Filter to today and past, dedupe overdue to show only most recent per task
     const filtered = occurrences.filter(o => o.due_date <= today)
-    const toUse = filtered.length > 0 ? filtered : occurrences
+    const todayOccs = filtered.filter(o => o.due_date === today)
+    const pastOccs = filtered.filter(o => o.due_date < today && o.status === 'pending')
+
+    // Keep only most recent overdue occurrence per task
+    const seenTasks = new Set()
+    const dedupedPast = []
+    for (const o of [...pastOccs].sort((a,b) => b.due_date.localeCompare(a.due_date))) {
+      if (!seenTasks.has(o.task_id)) {
+        seenTasks.add(o.task_id)
+        dedupedPast.push(o)
+      }
+    }
+
+    const toUse = [...dedupedPast, ...todayOccs]
 
     // Step 2 — get task details for each occurrence
     const taskIds = [...new Set(toUse.map(o => o.task_id))]
