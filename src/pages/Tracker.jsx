@@ -750,7 +750,3 @@ function AllMediaGallery({ session }) {
     </>
   )
 }
-
-    </>
-  )
-}
