@@ -256,6 +256,9 @@ export default function Tracker({ session }) {
   const [loading, setLoading] = useState(true)
   const [newPunch, setNewPunch] = useState('')
   const [newNote, setNewNote] = useState({ text:'', asset:'General property', flag:'none' })
+  const [savingNote, setSavingNote] = useState(false)
+  const [savingWO, setSavingWO] = useState(false)
+  const [savingPunch, setSavingPunch] = useState(false)
   const [woForm, setWoForm] = useState({ title:'', description:'', category:CATEGORIES[0], asset:'— select —', priority:'med', assigned_to:'Unassigned', due_date:'', photo_required:false, approval_required:true })
   const [isEditing, setIsEditing] = useState(false)
   const [pendingFiles, setPendingFiles] = useState([])
@@ -279,7 +282,8 @@ export default function Tracker({ session }) {
   }
 
   async function saveWorkOrder() {
-    if (!woForm.title.trim()) return
+    if (!woForm.title.trim() || savingWO) return
+    setSavingWO(true)
     let woId = selectedWO?.id
     if (isEditing && selectedWO) {
       await supabase.from('work_orders').update({
@@ -321,6 +325,7 @@ export default function Tracker({ session }) {
     }
 
     setPendingFiles([])
+    setSavingWO(false)
     resetWOForm()
     setView('list')
     loadAll()
@@ -347,9 +352,11 @@ export default function Tracker({ session }) {
   }
 
   async function addPunchItem() {
-    if (!newPunch.trim()) return
+    if (!newPunch.trim() || savingPunch) return
+    setSavingPunch(true)
     await supabase.from('punch_list_items').insert({ text: newPunch.trim(), done: false, created_by: session.user.id })
     setNewPunch('')
+    setSavingPunch(false)
     loadAll()
   }
 
@@ -359,9 +366,11 @@ export default function Tracker({ session }) {
   }
 
   async function addNote() {
-    if (!newNote.text.trim()) return
+    if (!newNote.text.trim() || savingNote) return
+    setSavingNote(true)
     await supabase.from('property_notes').insert({ text: newNote.text.trim(), asset: newNote.asset, flag: newNote.flag, created_by: session.user.id })
     setNewNote({ text:'', asset:'General property', flag:'none' })
+    setSavingNote(false)
     loadAll()
   }
 
@@ -466,7 +475,7 @@ export default function Tracker({ session }) {
             {pendingFiles.length>0 ? `✓ ${pendingFiles.length} file${pendingFiles.length!==1?'s':''} selected — tap to add more` : '📎 Attach photo / video (optional)'}
           </button>
         </div>
-        <button className="btn btn-primary" onClick={saveWorkOrder} disabled={!woForm.title.trim()||uploading}>
+        <button className="btn btn-primary" onClick={saveWorkOrder} disabled={!woForm.title.trim()||uploading||savingWO}>
           {uploading ? '⏳ Uploading…' : isEditing ? 'Save changes' : 'Create work order'}
         </button>
         <button className="btn btn-secondary" onClick={() => { resetWOForm(); setView('list') }}>Cancel</button>
@@ -651,7 +660,7 @@ export default function Tracker({ session }) {
                   </select>
                 </div>
               </div>
-              <button className="btn btn-primary" style={{marginBottom:0}} onClick={addNote} disabled={!newNote.text.trim()}>Save observation</button>
+              <button className="btn btn-primary" style={{marginBottom:0}} onClick={addNote} disabled={!newNote.text.trim()||savingNote}>{savingNote?'Saving…':'Save observation'}</button>
             </div>
             <div className="section-label">Recent observations</div>
             {loading ? <p style={{color:'#888',fontSize:13}}>Loading…</p>
@@ -738,6 +747,10 @@ function AllMediaGallery({ session }) {
             </div>
           ))}
         </div>}
+    </>
+  )
+}
+
     </>
   )
 }
