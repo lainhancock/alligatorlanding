@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
+import { notifyWorkOrderAssigned, notifyWorkOrderUpdated } from '../lib/sms'
 import { format } from 'date-fns'
 
 const CATEGORIES = [
@@ -293,6 +294,7 @@ export default function Tracker({ session }) {
         due_date: woForm.due_date || null, photo_required: woForm.photo_required,
         approval_required: woForm.approval_required, updated_at: new Date().toISOString()
       }).eq('id', selectedWO.id)
+      notifyWorkOrderUpdated(woForm.title, 'updated', profile?.full_name)
     } else {
       const { data } = await supabase.from('work_orders').insert({
         title: woForm.title, description: woForm.description,
@@ -302,7 +304,12 @@ export default function Tracker({ session }) {
         approval_required: woForm.approval_required, status: 'open',
         created_by: session.user.id
       }).select().single()
-      if (data) woId = data.id
+      if (data) {
+        woId = data.id
+        if (woForm.assigned_to && woForm.assigned_to !== 'Unassigned') {
+          notifyWorkOrderAssigned({ ...data, assigned_to_name: woForm.assigned_to })
+        }
+      }
     }
 
     // Upload any pending files
@@ -347,6 +354,8 @@ export default function Tracker({ session }) {
 
   async function updateWOStatus(id, status) {
     await supabase.from('work_orders').update({ status, updated_at: new Date().toISOString() }).eq('id', id)
+    const wo = workOrders.find(w => w.id === id)
+    if (wo) notifyWorkOrderUpdated(wo.title, status, profile?.full_name)
     loadAll()
     setView('list')
   }
