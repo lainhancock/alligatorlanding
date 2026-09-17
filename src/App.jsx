@@ -3,8 +3,6 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { supabase } from './lib/supabase'
 import Login from './pages/Login'
 import ResetPassword from './pages/ResetPassword'
-import PrivacyPolicy from './pages/PrivacyPolicy'
-import Terms from './pages/Terms'
 import Today from './pages/Today'
 import Week from './pages/Week'
 import Events from './pages/Events'
@@ -14,7 +12,6 @@ import Admin from './pages/Admin'
 import Animals from './pages/Animals'
 import Layout from './components/layout/Layout'
 import './index.css'
-
 
 export default function App() {
   const [session, setSession] = useState(null)
@@ -55,21 +52,11 @@ export default function App() {
 
   if (isReset) return <ResetPassword onDone={() => { setIsReset(false) }} />
 
-  if (!session) return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-        <Route path="/terms" element={<Terms />} />
-        <Route path="*" element={<Login />} />
-      </Routes>
-    </BrowserRouter>
-  )
+  if (!session) return <Login />
 
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-        <Route path="/terms" element={<Terms />} />
         <Route path="/" element={<Layout session={session} />}>
           <Route index element={<Navigate to="/today" replace />} />
           <Route path="today" element={<Today session={session} />} />
@@ -81,6 +68,10 @@ export default function App() {
           <Route path="admin" element={<Admin session={session} />} />
         </Route>
       </Routes>
+    </BrowserRouter>
+  )
+}
+
     </BrowserRouter>
   )
 }
