@@ -15,6 +15,7 @@ import Animals from './pages/Animals'
 import Layout from './components/layout/Layout'
 import './index.css'
 
+
 export default function App() {
   const [session, setSession] = useState(null)
   const [loading, setLoading] = useState(true)
