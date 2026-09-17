@@ -28,4 +28,64 @@ async function getPhonesByNames(names) {
   return data?.map(p => p.phone) || []
 }
 
-async function getOwnerAdminPhones()
+async function getOwnerAdminPhones() {
+  return getPhonesByNames(['Lain Hancock', 'Clare Bambury'])
+}
+
+async function getTraceScottPhones() {
+  return getPhonesByNames(['Trace', 'Scott Holcomb'])
+}
+
+async function getAssigneePhone(name) {
+  if (!name || name === 'Unassigned') return null
+  const { data } = await supabase
+    .from('profiles')
+    .select('phone')
+    .eq('full_name', name)
+    .maybeSingle()
+  return data?.phone || null
+}
+
+async function sendToAll(phones, message) {
+  const unique = [...new Set(phones.filter(Boolean))]
+  for (const phone of unique) {
+    await sendSMS(phone, message)
+  }
+}
+
+// Task assigned — assignee only
+export async function notifyTaskAssigned(taskTitle, assigneeName) {
+  const phone = await getAssigneePhone(assigneeName)
+  if (!phone) return
+  await sendSMS(phone, `Alligator Landing: You have been assigned a task - "${taskTitle}". View at alligatorlanding.com. Reply STOP to opt out.`)
+}
+
+// Work order assigned — assignee only
+export async function notifyWorkOrderAssigned(workOrder) {
+  const phone = await getAssigneePhone(workOrder.assigned_to_name)
+  if (!phone) return
+  const dueText = workOrder.due_date ? ` Due: ${new Date(workOrder.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}.` : ''
+  await sendSMS(phone, `Alligator Landing: New work order assigned to you - "${workOrder.title}".${dueText} View at alligatorlanding.com. Reply STOP to opt out.`)
+}
+
+// Work order updated or completed — Lain only
+export async function notifyWorkOrderUpdated(workOrderTitle, newStatus, updatedByName) {
+  const { data } = await supabase
+    .from('profiles')
+    .select('phone')
+    .eq('full_name', 'Lain Hancock')
+    .maybeSingle()
+  if (!data?.phone) return
+  const statusText = newStatus === 'done' ? 'completed' : newStatus === 'inprogress' ? 'marked in progress' : newStatus === 'blocked' ? 'marked blocked' : 'updated'
+  await sendSMS(data.phone, `Alligator Landing: Work order "${workOrderTitle}" was ${statusText} by ${updatedByName || 'crew'}. View at alligatorlanding.com. Reply STOP to opt out.`)
+}
+
+// Event created — Lain + Clare + Trace + Scott
+export async function notifyEventCreated(eventName, eventDate) {
+  const phones = [
+    ...await getOwnerAdminPhones(),
+    ...await getTraceScottPhones()
+  ]
+  const dateStr = new Date(eventDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  await sendToAll(phones, `Alligator Landing: New event scheduled - "${eventName}" on ${dateStr}. View at alligatorlanding.com. Reply STOP to opt out.`)
+}
