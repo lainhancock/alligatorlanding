@@ -21,7 +21,6 @@ export default function App() {
   const [isReset, setIsReset] = useState(false)
 
   useEffect(() => {
-    // Check if this is a password reset callback
     const hash = window.location.hash
     if (hash && hash.includes('type=recovery')) {
       setIsReset(true)
@@ -81,10 +80,6 @@ export default function App() {
           <Route path="admin" element={<Admin session={session} />} />
         </Route>
       </Routes>
-    </BrowserRouter>
-  )
-}
-
     </BrowserRouter>
   )
 }
