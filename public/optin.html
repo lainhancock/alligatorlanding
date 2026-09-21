@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alligator Landing — SMS Opt-In</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; color: #333; line-height: 1.7; background: #f9f9f9; }
+  .card { background: #fff; border-radius: 12px; padding: 32px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+  .logo { width: 56px; height: 56px; border-radius: 12px; background: #1A4F8A; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 700; margin-bottom: 16px; }
+  h1 { color: #1A4F8A; font-size: 22px; margin-bottom: 4px; }
+  .subtitle { color: #888; font-size: 14px; margin-bottom: 24px; }
+  .field { margin-bottom: 16px; }
+  label { display: block; font-size: 13px; font-weight: 500; color: #555; margin-bottom: 6px; }
+  input[type=text], input[type=email], input[type=tel] { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; box-sizing: border-box; }
+  .consent-box { background: #f8f8f8; border: 1px solid #ddd; border-radius: 8px; padding: 16px; margin: 20px 0; }
+  .consent-row { display: flex; align-items: flex-start; gap: 10px; }
+  .consent-row input[type=checkbox] { margin-top: 3px; width: 18px; height: 18px; flex-shrink: 0; }
+  .consent-text { font-size: 12px; color: #555; line-height: 1.6; }
+  .consent-text a { color: #1A4F8A; }
+  .btn { width: 100%; padding: 12px; background: #1A4F8A; color: #fff; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 8px; }
+  .note { font-size: 12px; color: #aaa; text-align: center; margin-top: 16px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">AL</div>
+  <h1>Alligator Landing</h1>
+  <p class="subtitle">Property Management System — Crew Registration</p>
+
+  <div class="field">
+    <label>Full name</label>
+    <input type="text" placeholder="Your name"/>
+  </div>
+  <div class="field">
+    <label>Email address</label>
+    <input type="email" placeholder="your@email.com"/>
+  </div>
+  <div class="field">
+    <label>Mobile phone number</label>
+    <input type="tel" placeholder="+1 (555) 000-0000"/>
+  </div>
+
+  <div class="consent-box">
+    <div class="consent-row">
+      <input type="checkbox" id="sms-consent"/>
+      <label for="sms-consent" class="consent-text">
+        By checking this box, I agree to receive SMS text message notifications from <strong>Alligator Landing</strong> related to my property management duties, including task assignments, work order updates, due date reminders, and event alerts. Message frequency varies based on property activity. Message and data rates may apply. I can reply <strong>STOP</strong> to opt out at any time or <strong>HELP</strong> for assistance. View our <a href="https://alligatorlanding.com/privacy-policy" target="_blank">Privacy Policy</a> and <a href="https://alligatorlanding.com/terms" target="_blank">Terms &amp; Conditions</a>.
+      </label>
+    </div>
+  </div>
+
+  <button class="btn">Create account</button>
+  <p class="note">Access is by invitation only. Contact lain@alligatorlanding.com for access.</p>
+</div>
+</body>
+</html>
