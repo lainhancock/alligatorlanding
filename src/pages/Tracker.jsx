@@ -522,6 +522,8 @@ export default function Tracker({ session }) {
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
             <div style={{background:'#f8f8f8',borderRadius:8,padding:9}}><div style={{fontSize:10,color:'#888'}}>Assigned to</div><div style={{fontSize:12,fontWeight:500,marginTop:2}}>{selectedWO.assigned_to_name||'Unassigned'}</div></div>
             <div style={{background:'#f8f8f8',borderRadius:8,padding:9}}><div style={{fontSize:10,color:'#888'}}>Due date</div><div style={{fontSize:12,fontWeight:500,marginTop:2}}>{selectedWO.due_date?format(new Date(selectedWO.due_date),'MMM d, yyyy'):'—'}</div></div>
+            <div style={{background:'#f8f8f8',borderRadius:8,padding:9}}><div style={{fontSize:10,color:'#888'}}>Created by</div><div style={{fontSize:12,fontWeight:500,marginTop:2}}>{selectedWO.created_profile?.full_name||'—'}</div></div>
+            <div style={{background:'#f8f8f8',borderRadius:8,padding:9}}><div style={{fontSize:10,color:'#888'}}>Created</div><div style={{fontSize:12,fontWeight:500,marginTop:2}}>{selectedWO.created_at?format(new Date(selectedWO.created_at),'MMM d, yyyy'):'—'}</div></div>
           </div>
           <div className="section-label">Photos & videos</div>
           <MediaPanel entityType="work_order" entityId={selectedWO.id} session={session}/>
