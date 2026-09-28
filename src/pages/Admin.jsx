@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import Reports from './Reports'
 import { format } from 'date-fns'
 
 const CATEGORIES_LIST = [
@@ -630,6 +631,7 @@ export default function Admin({ session }) {
         )}
 
         {/* ── AUDIT ── */}
+        {tab === 'reports' && <Reports session={session}/>}
         {tab === 'audit' && (
           <>
             <div className="section-label">Recent activity</div>
