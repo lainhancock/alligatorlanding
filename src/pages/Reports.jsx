@@ -8,12 +8,41 @@ const PERIODS = [
   { label: '90 days', days: 90 },
 ]
 
-function StatCard({ label, value, sub, color }) {
+function StatCard({ label, value, sub, color, onClick }) {
   return (
-    <div style={{background:'#fff',border:'0.5px solid #ddd',borderRadius:8,padding:12,textAlign:'center'}}>
+    <div onClick={onClick} style={{background:'#fff',border:'0.5px solid #ddd',borderRadius:8,padding:12,textAlign:'center',cursor:onClick?'pointer':'default',position:'relative'}}>
       <div style={{fontSize:26,fontWeight:700,color:color||'#1A4F8A'}}>{value}</div>
       <div style={{fontSize:11,fontWeight:500,color:'#333',marginTop:2}}>{label}</div>
       {sub && <div style={{fontSize:10,color:'#888',marginTop:2}}>{sub}</div>}
+      {onClick && <div style={{fontSize:9,color:'#aaa',marginTop:4}}>tap to view</div>}
+    </div>
+  )
+}
+
+// Drill-down modal
+function DrillDown({ title, items, onClose }) {
+  if (!items || items.length === 0) return null
+  return (
+    <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',flexDirection:'column',justifyContent:'flex-end'}}>
+      <div style={{background:'#fff',borderRadius:'16px 16px 0 0',maxHeight:'75vh',display:'flex',flexDirection:'column'}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px 16px 12px',borderBottom:'0.5px solid #eee'}}>
+          <div style={{fontSize:14,fontWeight:600,color:'#333'}}>{title}</div>
+          <button onClick={onClose} style={{background:'#f0f0f0',border:'none',borderRadius:20,padding:'4px 12px',fontSize:12,cursor:'pointer',color:'#555'}}>Close</button>
+        </div>
+        <div style={{overflowY:'auto',padding:'0 16px 16px'}}>
+          {items.map((item, i) => (
+            <div key={i} style={{padding:'10px 0',borderBottom:'0.5px solid #f5f5f5'}}>
+              <div style={{fontSize:13,fontWeight:500,color:'#333',marginBottom:3}}>{item.title}</div>
+              <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                {item.tags?.map((tag, j) => (
+                  <span key={j} style={{fontSize:10,padding:'2px 7px',borderRadius:10,background:tag.bg||'#f0f0f0',color:tag.color||'#555',fontWeight:500}}>{tag.label}</span>
+                ))}
+              </div>
+              {item.sub && <div style={{fontSize:11,color:'#888',marginTop:3}}>{item.sub}</div>}
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }
@@ -41,6 +70,7 @@ export default function Reports({ session }) {
   const [period, setPeriod] = useState(30)
   const [loading, setLoading] = useState(true)
   const [data, setData] = useState(null)
+  const [drillDown, setDrillDown] = useState(null) // { title, items }
 
   useEffect(() => { loadData() }, [period])
 
@@ -149,6 +179,9 @@ export default function Reports({ session }) {
     const avgGuests = totalEvents > 0 ? Math.round(events.reduce((s, e) => s + (e.guest_count || 0), 0) / totalEvents) : 0
 
     setData({
+      rawOccurrences: occurrences,
+      rawWorkOrders: workOrders,
+      rawNotes: notes,
       tasks: { total: totalTasks, completed: completedTasks, skipped: skippedTasks, needsAttn, overdue: overdueTasks, rate: completionRate, byCrew },
       workOrders: { total: totalWOs, open: openWOs, inProgress: inProgressWOs, done: doneWOs, blocked: blockedWOs, critical: criticalWOs, topAssets },
       notes: { total: totalNotes, urgent: urgentNotes, review: reviewNotes },
@@ -166,8 +199,59 @@ export default function Reports({ session }) {
 
   const d = data
 
+  function showOverdue() {
+    const today = new Date().toISOString().slice(0, 10)
+    const items = data.rawOccurrences?.filter(o => o.status === 'pending' && o.due_date < today).map(o => ({
+      title: o.task?.title || 'Unknown task',
+      tags: [
+        { label: o.due_date, bg:'#FCEBEB', color:'#A32D2D' },
+        { label: o.assigned_profile?.full_name || o.task?.assigned_to_name || 'Unassigned', bg:'#f0f0f0', color:'#555' }
+      ],
+      sub: `Due: ${o.due_date}`
+    })) || []
+    setDrillDown({ title: 'Overdue tasks', items })
+  }
+
+  function showCompleted() {
+    const items = data.rawOccurrences?.filter(o => o.status === 'completed').map(o => ({
+      title: o.task?.title || 'Unknown task',
+      tags: [
+        { label: 'Completed', bg:'#EAF3DE', color:'#3B6D11' },
+        { label: o.assigned_profile?.full_name || o.task?.assigned_to_name || 'Unassigned', bg:'#f0f0f0', color:'#555' }
+      ],
+      sub: `Due: ${o.due_date}`
+    })) || []
+    setDrillDown({ title: 'Completed tasks', items })
+  }
+
+  function showOpenWOs() {
+    const items = data.rawWorkOrders?.filter(w => w.status !== 'done').map(w => ({
+      title: w.title,
+      tags: [
+        { label: w.status, bg: w.status==='blocked'?'#FAEEDA':w.status==='inprogress'?'#E6F1FB':'#f0f0f0', color: w.status==='blocked'?'#854F0B':w.status==='inprogress'?'#185FA5':'#555' },
+        { label: w.priority||'normal', bg: w.priority==='crit'?'#FCEBEB':w.priority==='high'?'#FAEEDA':'#f0f0f0', color: w.priority==='crit'?'#A32D2D':w.priority==='high'?'#854F0B':'#555' },
+        { label: w.assigned_to_name||'Unassigned', bg:'#f0f0f0', color:'#555' }
+      ],
+      sub: w.due_date ? `Due: ${w.due_date}` : null
+    })) || []
+    setDrillDown({ title: 'Open work orders', items })
+  }
+
+  function showUrgentNotes() {
+    const items = data.rawNotes?.filter(n => n.flag === 'urgent' || n.flag === 'review').map(n => ({
+      title: n.text,
+      tags: [
+        { label: n.flag === 'urgent' ? 'Urgent' : 'Needs review', bg: n.flag==='urgent'?'#FCEBEB':'#FAEEDA', color: n.flag==='urgent'?'#A32D2D':'#854F0B' },
+        { label: n.asset || 'General', bg:'#f0f0f0', color:'#555' }
+      ],
+      sub: n.created_at ? `Logged: ${new Date(n.created_at).toLocaleDateString()}` : null
+    })) || []
+    setDrillDown({ title: 'Flagged observations', items })
+  }
+
   return (
     <div style={{padding:'16px 16px 32px'}}>
+      {drillDown && <DrillDown title={drillDown.title} items={drillDown.items} onClose={() => setDrillDown(null)}/>}
       {/* Period selector */}
       <div style={{display:'flex',gap:6,marginBottom:16}}>
         {PERIODS.map(p => (
@@ -183,8 +267,8 @@ export default function Reports({ session }) {
       <SectionHeader title="Task completion"/>
       <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:12}}>
         <StatCard label="Completion rate" value={`${d.tasks.rate}%`} color={d.tasks.rate>=80?'#3B6D11':d.tasks.rate>=60?'#854F0B':'#A32D2D'}/>
-        <StatCard label="Completed" value={d.tasks.completed} color="#3B6D11"/>
-        <StatCard label="Overdue" value={d.tasks.overdue} color="#A32D2D"/>
+        <StatCard label="Completed" value={d.tasks.completed} color="#3B6D11" onClick={d.tasks.completed>0?showCompleted:null}/>
+        <StatCard label="Overdue" value={d.tasks.overdue} color="#A32D2D" onClick={d.tasks.overdue>0?showOverdue:null}/>
       </div>
       <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:12}}>
         <StatCard label="Total tasks" value={d.tasks.total}/>
@@ -208,7 +292,7 @@ export default function Reports({ session }) {
         <StatCard label="Critical open" value={d.workOrders.critical} color="#A32D2D"/>
       </div>
       <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:12}}>
-        <StatCard label="Open" value={d.workOrders.open} color="#555"/>
+        <StatCard label="Open" value={d.workOrders.open} color="#555" onClick={d.workOrders.open>0?showOpenWOs:null}/>
         <StatCard label="In progress" value={d.workOrders.inProgress} color="#185FA5"/>
         <StatCard label="Blocked" value={d.workOrders.blocked} color="#854F0B"/>
       </div>
@@ -225,7 +309,7 @@ export default function Reports({ session }) {
       <SectionHeader title="Property observations"/>
       <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:4}}>
         <StatCard label="Total notes" value={d.notes.total}/>
-        <StatCard label="Urgent" value={d.notes.urgent} color="#A32D2D"/>
+        <StatCard label="Urgent" value={d.notes.urgent} color="#A32D2D" onClick={(d.notes.urgent+d.notes.review)>0?showUrgentNotes:null}/>
         <StatCard label="Needs review" value={d.notes.review} color="#854F0B"/>
       </div>
 
