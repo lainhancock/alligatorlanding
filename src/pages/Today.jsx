@@ -75,10 +75,15 @@ export default function Today({ session }) {
 
     // Step 2 — get task details for each occurrence
     const taskIds = [...new Set(toUse.map(o => o.task_id))]
-    const { data: taskData, error: taskErr } = await supabase
-      .from('tasks')
-      .select('*, category:categories(*), asset:assets(*)')
-      .in('id', taskIds)
+    const occurrenceIds = toUse.map(o => o.id)
+
+    const [
+      { data: taskData, error: taskErr },
+      { data: completionData }
+    ] = await Promise.all([
+      supabase.from('tasks').select('*, category:categories(*), asset:assets(*)').in('id', taskIds),
+      supabase.from('task_completions').select('occurrence_id, completed_by, profiles!task_completions_completed_by_fkey(full_name)').in('occurrence_id', occurrenceIds)
+    ])
 
     if (taskErr) { setError('Tasks error: ' + taskErr.message); setLoading(false); return }
 
@@ -86,9 +91,13 @@ export default function Today({ session }) {
     const taskMap = {}
     taskData?.forEach(t => { taskMap[t.id] = t })
 
+    const completionMap = {}
+    completionData?.forEach(c => { completionMap[c.occurrence_id] = c })
+
     const merged = toUse.map(o => ({
       ...o,
-      task: taskMap[o.task_id] || null
+      task: taskMap[o.task_id] || null,
+      completion: completionMap[o.id] || null
     }))
 
     setTasks(merged)
@@ -252,6 +261,7 @@ export default function Today({ session }) {
           <div><p style={{fontSize:10,color:'#888'}}>Assigned to</p><p style={{fontSize:12,fontWeight:500}}>{selected.task?.assigned_to_name || selected.assigned_profile?.full_name || 'Unassigned'}</p></div>
           <div><p style={{fontSize:10,color:'#888'}}>Priority</p><p style={{fontSize:12,fontWeight:500}}>{selected.task?.priority || 'normal'}</p></div>
           <div><p style={{fontSize:10,color:'#888'}}>Photo req.</p><p style={{fontSize:12,fontWeight:500}}>{selected.task?.photo_required ? 'Yes' : 'No'}</p></div>
+          <div><p style={{fontSize:10,color:'#888'}}>Completed by</p><p style={{fontSize:12,fontWeight:500}}>{selected.status==='completed'?(selected.completion?.profiles?.full_name||selected.assigned_profile?.full_name||'—'):'Pending'}</p></div>
         </div>
         {selected.status !== 'completed' && (
           <>
@@ -511,6 +521,7 @@ function TaskCard({ task, onClick }) {
           : status === 'overdue' ? <span className="badge badge-overdue">Overdue</span>
           : <span className="badge badge-due">Due</span>}
           {task.task?.asset?.name ? ` · ${task.task.asset.name}` : ''}
+          {status === 'completed' && task.completion?.profiles?.full_name ? ` · ${task.completion.profiles.full_name}` : ''}
         </div>
       </div>
       <div className={`check-btn${status==='completed'?' done':''}`}>
