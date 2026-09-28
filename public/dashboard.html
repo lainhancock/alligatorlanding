@@ -53,10 +53,12 @@ const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsI
 
 let currentDays = 30
 
-async function query(table, params) {
+async function query(table, select, filters) {
   const url = new URL(`${SUPABASE_URL}/rest/v1/${table}`)
-  Object.entries(params || {}).forEach(([k, v]) => url.searchParams.set(k, v))
-  const res = await fetch(url, { headers: { apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}` } })
+  url.searchParams.set('select', select)
+  Object.entries(filters || {}).forEach(([k, v]) => url.searchParams.set(k, v))
+  const res = await fetch(url, { headers: { apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}`, Prefer: 'return=representation' } })
+  if (!res.ok) { console.error(table, await res.text()); return [] }
   return res.json()
 }
 
@@ -88,13 +90,13 @@ async function loadDashboard() {
   const sinceISO = new Date(Date.now() - currentDays * 86400000).toISOString()
 
   const [occurrences, workOrders, notes, huntLogs, animals, feeders, events] = await Promise.all([
-    query('task_occurrences', { select: 'id,status,due_date,task_id', 'due_date': `gte.${since}` }),
-    query('work_orders', { select: 'id,status,priority,asset,assigned_to_name,due_date', created_at: `gte.${sinceISO}`, deleted_at: 'is.null' }),
-    query('property_notes', { select: 'id,flag,asset,created_at', created_at: `gte.${sinceISO}`, deleted_at: 'is.null' }),
-    query('hunt_logs', { select: 'id,harvest,sightings,animal_type,hunt_date', 'hunt_date': `gte.${since}`, deleted_at: 'is.null' }),
-    query('animal_inventory', { select: 'id,species,status,acquisition_type,purchase_price' }),
-    query('feeders', { select: 'id,name,fill_level,feeder_type', active: 'eq.true' }),
-    query('events', { select: 'id,name,event_date,guest_count,status', created_at: `gte.${sinceISO}`, deleted_at: 'is.null' }),
+    query('task_occurrences', 'id,status,due_date,task_id', { 'due_date': `gte.${since}` }),
+    query('work_orders', 'id,status,priority,asset,assigned_to_name,due_date', { 'created_at': `gte.${sinceISO}`, 'deleted_at': 'is.null' }),
+    query('property_notes', 'id,flag,asset,created_at', { 'created_at': `gte.${sinceISO}`, 'deleted_at': 'is.null' }),
+    query('hunt_logs', 'id,harvest,sightings,animal_type,hunt_date', { 'hunt_date': `gte.${since}`, 'deleted_at': 'is.null' }),
+    query('animal_inventory', 'id,species,status,acquisition_type,purchase_price', {}),
+    query('feeders', 'id,name,fill_level,feeder_type', { 'active': 'eq.true' }),
+    query('events', 'id,name,event_date,guest_count,status', { 'created_at': `gte.${sinceISO}`, 'deleted_at': 'is.null' }),
   ])
 
   const totalTasks = occurrences.length
@@ -176,7 +178,7 @@ async function loadDashboard() {
   html += `</div><div class="stat-grid">`
   html += statCard(totalSightings, 'Sightings', '#555')
   html += statCard(totalHunts>0?Math.round(totalSightings/totalHunts):0, 'Per hunt', '#555')
-  html += statCard(occurrences.length > 0 ? '✓' : '—', 'Active', '#3B6D11')
+  html += statCard('—', 'Season', '#555')
   html += `</div>`
   if (Object.keys(bySpecies).length > 0) {
     const maxH = Math.max(...Object.values(bySpecies))
