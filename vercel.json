@@ -3,6 +3,7 @@
     { "source": "/privacy-policy", "destination": "/privacy-policy.html" },
     { "source": "/terms", "destination": "/terms.html" },
     { "source": "/optin", "destination": "/optin.html" },
-    { "source": "/((?!privacy-policy|terms|optin).*)", "destination": "/index.html" }
+    { "source": "/dashboard", "destination": "/dashboard.html" },
+    { "source": "/((?!privacy-policy|terms|optin|dashboard).*)", "destination": "/index.html" }
   ]
 }
