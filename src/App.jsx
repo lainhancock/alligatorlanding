@@ -10,6 +10,7 @@ import Hunting from './pages/Hunting'
 import Tracker from './pages/Tracker'
 import Admin from './pages/Admin'
 import Animals from './pages/Animals'
+import Reports from './pages/Reports'
 import Layout from './components/layout/Layout'
 import './index.css'
 
@@ -66,6 +67,7 @@ export default function App() {
           <Route path="hunting" element={<Hunting session={session} />} />
           <Route path="animals" element={<Animals session={session} />} />
           <Route path="admin" element={<Admin session={session} />} />
+          <Route path="reports" element={<Reports session={session} />} />
         </Route>
       </Routes>
     </BrowserRouter>
