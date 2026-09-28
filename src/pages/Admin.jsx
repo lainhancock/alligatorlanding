@@ -470,7 +470,7 @@ export default function Admin({ session }) {
       </div>
       <div className="content">
         <div className="tab-row">
-          {[['overview','Overview'],['tasks','Tasks'],['users','Users'],['service','Service'],['audit','Audit']].map(([k,l]) => (
+          {[['overview','Overview'],['tasks','Tasks'],['users','Users'],['service','Service'],['audit','Audit'],['reports','Reports']].map(([k,l]) => (
             <button key={k} className={`tab-btn${tab===k?' active':''}`} onClick={() => setTab(k)}>{l}</button>
           ))}
         </div>
