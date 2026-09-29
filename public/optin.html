@@ -57,7 +57,7 @@
     </div>
 
     <div class="error-msg" id="error-msg">Please fill in all fields and check the consent box.</div>
-    <button class="btn" id="submit-btn" onclick="handleSubmit()">Request access</button>
+    <button class="btn" id="submit-btn">Request access</button>
     <p class="note">Access is by invitation only. Your request will be reviewed by the property owner.</p>
   </div>
 
@@ -69,12 +69,12 @@
 </div>
 
 <script>
-function handleSubmit() {
-  const name = document.getElementById('name').value.trim()
-  const email = document.getElementById('email').value.trim()
-  const phone = document.getElementById('phone').value.trim()
-  const consent = document.getElementById('sms-consent').checked
-  const errorMsg = document.getElementById('error-msg')
+document.getElementById('submit-btn').addEventListener('click', function() {
+  var name = document.getElementById('name').value.trim()
+  var email = document.getElementById('email').value.trim()
+  var phone = document.getElementById('phone').value.trim()
+  var consent = document.getElementById('sms-consent').checked
+  var errorMsg = document.getElementById('error-msg')
 
   if (!name || !email || !phone || !consent) {
     errorMsg.style.display = 'block'
@@ -83,13 +83,13 @@ function handleSubmit() {
 
   errorMsg.style.display = 'none'
   document.getElementById('submit-btn').disabled = true
-  document.getElementById('submit-btn').textContent = 'Submitting…'
+  document.getElementById('submit-btn').textContent = 'Submitting...'
 
-  setTimeout(() => {
+  setTimeout(function() {
     document.getElementById('form-section').style.display = 'none'
     document.getElementById('success-section').style.display = 'block'
   }, 800)
-}
+})
 </script>
 </body>
 </html>
