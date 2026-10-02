@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { notifyEventCreated } from '../lib/sms'
 import { format } from 'date-fns'
 
 const STRUCTURES = ['Main house','Lake house','OG Tiny House','Tiny House 2','Hangar','RO Shed','Equipment Shed']
@@ -80,6 +81,7 @@ export default function Events({ session }) {
   const [view, setView] = useState('list')
   const [loading, setLoading] = useState(true)
   const [alertSent, setAlertSent] = useState(null)
+  const [editingEvent, setEditingEvent] = useState(null)
 
   const [form, setForm] = useState({
     event_type: 'arrival',
@@ -97,6 +99,25 @@ export default function Events({ session }) {
   const [selBlinds, setSelBlinds] = useState(new Set())
   const [utvState, setUtvState] = useState({})
   const [rvState, setRvState] = useState({})
+
+  function editEvent(event) {
+    const d = new Date(event.event_date)
+    const dateStr = d.toISOString().slice(0, 10)
+    const timeStr = d.toTimeString().slice(0, 5)
+    setForm({
+      event_type: event.event_type || 'arrival',
+      name: event.name || '',
+      event_date: dateStr,
+      event_time: timeStr,
+      guest_count: event.guest_count || 0,
+      flying_in: event.flying_in || false,
+      meals_needed: event.meals_needed || false,
+      notify_hours_before: event.notify_hours_before || 48,
+      special_instructions: event.special_instructions || '',
+    })
+    setEditingEvent(event)
+    setView('schedule')
+  }
 
   useEffect(() => { loadEvents() }, [])
 
@@ -122,6 +143,27 @@ export default function Events({ session }) {
 
   async function saveEvent() {
     const eventDate = form.event_date + 'T' + form.event_time + ':00'
+
+    if (editingEvent) {
+      // Update existing event
+      const { error } = await supabase.from('events').update({
+        event_type: form.event_type,
+        name: form.name,
+        event_date: eventDate,
+        guest_count: form.guest_count,
+        flying_in: form.flying_in,
+        notify_hours_before: form.notify_hours_before,
+        special_instructions: form.special_instructions,
+        meals_needed: form.meals_needed,
+      }).eq('id', editingEvent.id)
+      if (error) { alert('Error updating event: ' + error.message); return }
+      await loadEvents()
+      setView('list')
+      setEditingEvent(null)
+      resetForm()
+      return
+    }
+
     const { data: event, error } = await supabase.from('events').insert({
       event_type: form.event_type,
       name: form.name,
@@ -130,10 +172,12 @@ export default function Events({ session }) {
       flying_in: form.flying_in,
       notify_hours_before: form.notify_hours_before,
       special_instructions: form.special_instructions,
+      meals_needed: form.meals_needed,
       created_by: session.user.id
     }).select().single()
 
     if (error) { alert('Error saving event: ' + error.message); return }
+    notifyEventCreated(form.name, eventDate)
 
     const items = []
 
@@ -217,6 +261,7 @@ export default function Events({ session }) {
 
   if (view === 'schedule') return (
     <ScheduleForm
+      isEditing={!!editingEvent}
       form={form} setForm={setForm}
       selStructs={selStructs} setSelStructs={setSelStructs}
       boatState={boatState} setBoatState={setBoatState}
@@ -226,7 +271,7 @@ export default function Events({ session }) {
       alertSent={alertSent}
       onAlertNow={handleAlertNow}
       onSave={saveEvent}
-      onCancel={() => { setView('list'); resetForm() }}
+      onCancel={() => { setView('list'); resetForm(); setEditingEvent(null) }}
     />
   )
 
@@ -242,13 +287,13 @@ export default function Events({ session }) {
             {upcoming.length > 0 && (
               <>
                 <div className="section-label">Upcoming</div>
-                {upcoming.map(e => <EventCard key={e.id} event={e} session={session} onRefresh={loadEvents} />)}
+                {upcoming.map(e => <EventCard key={e.id} event={e} session={session} onRefresh={loadEvents} onEdit={editEvent} />)}
               </>
             )}
             {past.length > 0 && (
               <>
                 <div className="section-label">Past events</div>
-                {past.slice(0,5).map(e => <EventCard key={e.id} event={e} session={session} faded onRefresh={loadEvents} />)}
+                {past.slice(0,5).map(e => <EventCard key={e.id} event={e} session={session} faded onRefresh={loadEvents} onEdit={editEvent} />)}
               </>
             )}
             {events.length === 0 && (
@@ -268,7 +313,7 @@ export default function Events({ session }) {
   )
 }
 
-function ScheduleForm({ form, setForm, selStructs, setSelStructs, boatState, setBoatState, selBlinds, setSelBlinds, utvState, setUtvState, rvState, setRvState, alertSent, onAlertNow, onSave, onCancel }) {
+function ScheduleForm({ form, setForm, selStructs, setSelStructs, boatState, setBoatState, selBlinds, setSelBlinds, utvState, setUtvState, rvState, setRvState, alertSent, onAlertNow, onSave, onCancel, isEditing }) {
 
   function togStruct(s) {
     const next = new Set(selStructs)
@@ -320,7 +365,7 @@ function ScheduleForm({ form, setForm, selStructs, setSelStructs, boatState, set
         <button onClick={onCancel} style={{background:'none',border:'none',color:'#fff',fontSize:13,cursor:'pointer',marginBottom:10,display:'flex',alignItems:'center',gap:4}}>
           ← Back
         </button>
-        <h1>Schedule {form.event_type}</h1>
+        <h1>{isEditing ? 'Edit' : 'Schedule'} {form.event_type}</h1>
         <p>Alligator Landing</p>
       </div>
       <div className="content">
@@ -544,7 +589,7 @@ function ScheduleForm({ form, setForm, selStructs, setSelStructs, boatState, set
         </div>
 
         <button className="btn btn-primary" onClick={onSave} disabled={!form.name||!form.event_date}>
-          Schedule event
+          {isEditing ? 'Save changes' : 'Schedule event'}
         </button>
         <button className="btn btn-secondary" onClick={onCancel}>Cancel</button>
       </div>
@@ -552,7 +597,7 @@ function ScheduleForm({ form, setForm, selStructs, setSelStructs, boatState, set
   )
 }
 
-function EventCard({ event, session, faded, onRefresh }) {
+function EventCard({ event, session, faded, onRefresh, onEdit }) {
   const [checklistItems, setChecklistItems] = useState([])
   const [expanded, setExpanded] = useState(false)
   const [alertSent, setAlertSent] = useState(false)
@@ -687,6 +732,9 @@ function EventCard({ event, session, faded, onRefresh }) {
 
         {expanded && !faded && (
           <div style={{borderTop:'0.5px solid #f0f0f0',padding:'10px 0 4px',display:'flex',gap:7}} onClick={e=>e.stopPropagation()}>
+            <button onClick={()=>onEdit(event)} style={{flex:1,padding:'8px',borderRadius:8,border:'0.5px solid #ddd',background:'#E6F1FB',color:'#1A4F8A',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
+              ✏️ Edit
+            </button>
             <button onClick={()=>{ if(window.confirm('Archive this event?')) deleteEvent(false) }} style={{flex:1,padding:'8px',borderRadius:8,border:'0.5px solid #ddd',background:'#FAEEDA',color:'#854F0B',fontSize:11,cursor:'pointer',fontFamily:'inherit'}}>
               📦 Archive
             </button>
