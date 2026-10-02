@@ -100,10 +100,14 @@ export default function Events({ session }) {
   const [utvState, setUtvState] = useState({})
   const [rvState, setRvState] = useState({})
 
-  function editEvent(event) {
-    const d = new Date(event.event_date)
-    const dateStr = d.toISOString().slice(0, 10)
-    const timeStr = d.toTimeString().slice(0, 5)
+  async function editEvent(event) {
+    // Fix date/time parsing in CST
+    const raw = event.event_date
+    const localStr = new Date(raw).toLocaleString('en-US', { timeZone: 'America/Chicago' })
+    const local = new Date(localStr)
+    const dateStr = `${local.getFullYear()}-${String(local.getMonth()+1).padStart(2,'0')}-${String(local.getDate()).padStart(2,'0')}`
+    const timeStr = `${String(local.getHours()).padStart(2,'0')}:${String(local.getMinutes()).padStart(2,'0')}`
+
     setForm({
       event_type: event.event_type || 'arrival',
       name: event.name || '',
@@ -115,6 +119,66 @@ export default function Events({ session }) {
       notify_hours_before: event.notify_hours_before || 48,
       special_instructions: event.special_instructions || '',
     })
+
+    // Load checklist to reconstruct selections
+    const { data: items } = await supabase
+      .from('event_checklist_items')
+      .select('*')
+      .eq('event_id', event.id)
+
+    if (items) {
+      // Reconstruct structures
+      const structs = new Set()
+      items.filter(i => i.section === 'Structures').forEach(i => {
+        const match = i.title.match(/Walk-through & inspect — (.+)/)
+        if (match) structs.add(match[1])
+      })
+      setSelStructs(structs)
+
+      // Reconstruct boats
+      const boats = {}
+      items.filter(i => i.section === 'Boats').forEach(i => {
+        const putOut = i.title.match(/Put out (.+) at dock/)
+        if (putOut) {
+          const boat = BOATS.find(b => putOut[1].includes(b.name))
+          if (boat) boats[boat.id] = { selected: true, prep: [] }
+        }
+        const prep = i.title.match(/(.+) — (.+)/)
+        if (prep && BOAT_PREP.includes(prep[2])) {
+          const boat = BOATS.find(b => i.title.startsWith(b.name))
+          if (boat && boats[boat.id]) boats[boat.id].prep.push(prep[2])
+        }
+      })
+      setBoatState(boats)
+
+      // Reconstruct blinds
+      const blinds = new Set()
+      items.filter(i => i.section === 'Hunting blinds').forEach(i => {
+        const match = i.title.match(/^(.+) — inspect/)
+        if (match) {
+          const blind = BLINDS.find(b => b.name === match[1])
+          if (blind) blinds.add(blind.id)
+        }
+      })
+      setSelBlinds(blinds)
+
+      // Reconstruct UTVs
+      const utvs = {}
+      items.filter(i => i.section === 'UTVs & Vehicles').forEach(i => {
+        const stage = i.title.match(/Stage (.+) at (.+)/)
+        if (stage) {
+          const utv = UTVS.find(u => stage[1].includes(u.name))
+          if (utv) utvs[utv.id] = { selected: true, staging: stage[2] }
+        }
+        const wash = i.title.match(/Wash & detail (.+)/)
+        if (wash) {
+          const utv = UTVS.find(u => wash[1].includes(u.name))
+          if (utv && !utvs[utv.id]) utvs[utv.id] = { selected: true, staging: 'main house' }
+        }
+      })
+      setUtvState(utvs)
+    }
+
     setEditingEvent(event)
     setView('schedule')
   }
@@ -157,6 +221,65 @@ export default function Events({ session }) {
         meals_needed: form.meals_needed,
       }).eq('id', editingEvent.id)
       if (error) { alert('Error updating event: ' + error.message); return }
+
+      // Delete existing checklist and regenerate
+      await supabase.from('event_checklist_items').delete().eq('event_id', editingEvent.id)
+
+      // Rebuild checklist items using same logic as create
+      const editItems = []
+      selStructs.forEach(s => {
+        editItems.push({ event_id: editingEvent.id, section: 'Structures', title: `Walk-through & inspect — ${s}`, photo_required: true, sort_order: 1 })
+        editItems.push({ event_id: editingEvent.id, section: 'Structures', title: `Make beds & clean — ${s}`, photo_required: false, sort_order: 2 })
+      })
+      Object.entries(boatState).forEach(([id, state]) => {
+        if (!state.selected) return
+        const boat = BOATS.find(b => b.id === id)
+        if (!boat) return
+        editItems.push({ event_id: editingEvent.id, section: 'Boats', title: `Put out ${boat.name} at dock`, photo_required: true, sort_order: 10 })
+        ;(state.prep || []).forEach(p => {
+          editItems.push({ event_id: editingEvent.id, section: 'Boats', title: `${boat.name} — ${p}`, photo_required: false, sort_order: 11 })
+        })
+      })
+      selBlinds.forEach(id => {
+        const blind = BLINDS.find(b => b.id === id)
+        if (!blind) return
+        editItems.push({ event_id: editingEvent.id, section: 'Hunting blinds', title: `${blind.name} — inspect & clean, check for wasps`, photo_required: true, sort_order: 20 })
+        if (blind.type === 'box') {
+          editItems.push({ event_id: editingEvent.id, section: 'Hunting blinds', title: `${blind.name} — verify 2 chairs present`, photo_required: false, sort_order: 21 })
+        } else {
+          editItems.push({ event_id: editingEvent.id, section: 'Hunting blinds', title: `${blind.name} — check pull-up rope and strap security`, photo_required: false, sort_order: 21 })
+        }
+      })
+      Object.entries(utvState).forEach(([id, state]) => {
+        if (!state.selected) return
+        const utv = UTVS.find(u => u.id === id)
+        if (!utv) return
+        editItems.push({ event_id: editingEvent.id, section: 'UTVs & Vehicles', title: `Wash & detail ${utv.name}`, photo_required: true, sort_order: 30 })
+        editItems.push({ event_id: editingEvent.id, section: 'UTVs & Vehicles', title: `Stage ${utv.name} at ${state.staging || 'main house'}`, photo_required: true, sort_order: 31 })
+      })
+      if (form.flying_in) {
+        editItems.push({ event_id: editingEvent.id, section: 'Helipad & Fuel', title: 'Check Jet-A fuel quality — water detection test', photo_required: true, sort_order: 40 })
+        editItems.push({ event_id: editingEvent.id, section: 'Helipad & Fuel', title: 'Verify fuel trailer has minimum 150 gallons', photo_required: false, sort_order: 41 })
+        editItems.push({ event_id: editingEvent.id, section: 'Helipad & Fuel', title: 'Position fuel trailer at helipad — north side', photo_required: true, sort_order: 42 })
+        editItems.push({ event_id: editingEvent.id, section: 'Helipad & Fuel', title: 'Clear helipad of all debris', photo_required: true, sort_order: 43 })
+        editItems.push({ event_id: editingEvent.id, section: 'Helipad & Fuel', title: 'Confirm windsock is visible and functional', photo_required: false, sort_order: 44 })
+      }
+      if (form.meals_needed) {
+        editItems.push({ event_id: editingEvent.id, section: 'Meals', title: 'Confirm meal order placed', photo_required: false, sort_order: 50 })
+        editItems.push({ event_id: editingEvent.id, section: 'Meals', title: 'Confirm meal delivery received', photo_required: true, sort_order: 51 })
+      }
+      if (form.guest_count > 0) {
+        editItems.push({ event_id: editingEvent.id, section: 'Rifle Range', title: 'Put up fresh targets on all stands', photo_required: true, sort_order: 60 })
+        editItems.push({ event_id: editingEvent.id, section: 'Rifle Range', title: 'Check range area is clear of brass and debris', photo_required: false, sort_order: 61 })
+      }
+      editItems.push({ event_id: editingEvent.id, section: 'Grounds', title: 'Mow & trim all landscaping areas', photo_required: true, sort_order: 70 })
+      editItems.push({ event_id: editingEvent.id, section: 'Grounds', title: 'Blow off all driveways & walkways', photo_required: false, sort_order: 71 })
+      editItems.push({ event_id: editingEvent.id, section: 'Grounds', title: 'Clear lakefront & check dock area', photo_required: true, sort_order: 72 })
+
+      if (editItems.length > 0) {
+        await supabase.from('event_checklist_items').insert(editItems)
+      }
+
       await loadEvents()
       setView('list')
       setEditingEvent(null)
