@@ -219,12 +219,15 @@ export default function Events({ session }) {
     setTimeout(() => setAlertSent(null), 4000)
   }
 
-  async function saveEvent() {
-    const eventDate = form.event_date + 'T' + form.event_time + ':00'
-
+  async function saveEvent(selections = {}) {
+    const { selStructs: sel_structs = selStructs, boatState: boat_state = boatState, selBlinds: sel_blinds = selBlinds, utvState: utv_state = utvState, rvState: rv_state = rvState } = selections
+    // Build datetime strings with CST offset to prevent UTC shift
+    const cstOffset = '-06:00' // CST (use -05:00 during CDT if needed)
+    const eventDate = form.event_date + 'T' + form.event_time + ':00' + cstOffset
+    
     if (editingEvent) {
       // Update existing event
-      const depDate = form.departure_date ? form.departure_date + 'T' + form.departure_time + ':00' : null
+      const depDate = form.departure_date ? form.departure_date + 'T' + form.departure_time + ':00' + cstOffset : null
       const { error } = await supabase.from('events').update({
         event_type: form.event_type,
         name: form.name,
@@ -243,11 +246,11 @@ export default function Events({ session }) {
 
       // Rebuild checklist items using same logic as create
       const editItems = []
-      selStructs.forEach(s => {
+      sel_structs.forEach(s => {
         editItems.push({ event_id: editingEvent.id, section: 'Structures', title: `Walk-through & inspect — ${s}`, photo_required: true, sort_order: 1 })
         editItems.push({ event_id: editingEvent.id, section: 'Structures', title: `Make beds & clean — ${s}`, photo_required: false, sort_order: 2 })
       })
-      Object.entries(boatState).forEach(([id, state]) => {
+      Object.entries(boat_state).forEach(([id, state]) => {
         if (!state.selected) return
         const boat = BOATS.find(b => b.id === id)
         if (!boat) return
@@ -256,7 +259,7 @@ export default function Events({ session }) {
           editItems.push({ event_id: editingEvent.id, section: 'Boats', title: `${boat.name} — ${p}`, photo_required: false, sort_order: 11 })
         })
       })
-      selBlinds.forEach(id => {
+      sel_blinds.forEach(id => {
         const blind = BLINDS.find(b => b.id === id)
         if (!blind) return
         editItems.push({ event_id: editingEvent.id, section: 'Hunting blinds', title: `${blind.name} — inspect & clean, check for wasps`, photo_required: true, sort_order: 20 })
@@ -266,7 +269,7 @@ export default function Events({ session }) {
           editItems.push({ event_id: editingEvent.id, section: 'Hunting blinds', title: `${blind.name} — check pull-up rope and strap security`, photo_required: false, sort_order: 21 })
         }
       })
-      Object.entries(utvState).forEach(([id, state]) => {
+      Object.entries(utv_state).forEach(([id, state]) => {
         if (!state.selected) return
         const utv = UTVS.find(u => u.id === id)
         if (!utv) return
@@ -303,7 +306,7 @@ export default function Events({ session }) {
       return
     }
 
-    const departureDate = form.departure_date ? form.departure_date + 'T' + form.departure_time + ':00' : null
+    const departureDate = form.departure_date ? form.departure_date + 'T' + form.departure_time + ':00' + cstOffset : null
     const { data: event, error } = await supabase.from('events').insert({
       event_type: form.event_type,
       name: form.name,
@@ -322,12 +325,12 @@ export default function Events({ session }) {
 
     const items = []
 
-    selStructs.forEach(s => {
+    sel_structs.forEach(s => {
       items.push({ event_id: event.id, section: 'Structures', title: `Walk-through & inspect — ${s}`, photo_required: true, sort_order: 1 })
       items.push({ event_id: event.id, section: 'Structures', title: `Make beds & clean — ${s}`, photo_required: false, sort_order: 2 })
     })
 
-    Object.entries(boatState).forEach(([id, state]) => {
+    Object.entries(boat_state).forEach(([id, state]) => {
       if (!state.selected) return
       const boat = BOATS.find(b => b.id === id)
       if (!boat) return
@@ -337,7 +340,7 @@ export default function Events({ session }) {
       })
     })
 
-    selBlinds.forEach(id => {
+    sel_blinds.forEach(id => {
       const blind = BLINDS.find(b => b.id === id)
       if (!blind) return
       items.push({ event_id: event.id, section: 'Hunting blinds', title: `${blind.name} — inspect & clean, check for wasps`, photo_required: true, sort_order: 20 })
@@ -348,7 +351,7 @@ export default function Events({ session }) {
       }
     })
 
-    Object.entries(utvState).forEach(([id, state]) => {
+    Object.entries(utv_state).forEach(([id, state]) => {
       if (!state.selected) return
       const utv = UTVS.find(u => u.id === id)
       if (!utv) return
@@ -744,7 +747,7 @@ function ScheduleForm({ form, setForm, selStructs, setSelStructs, boatState, set
           <textarea className="form-input" rows={3} value={form.special_instructions} onChange={e=>setForm({...form,special_instructions:e.target.value})} placeholder="Notes for crew…" style={{resize:'none'}}/>
         </div>
 
-        <button className="btn btn-primary" onClick={onSave} disabled={!form.name||!form.event_date}>
+        <button className="btn btn-primary" onClick={() => onSave({ selStructs, boatState, selBlinds, utvState, rvState })} disabled={!form.name||!form.event_date}>
           {isEditing ? 'Save changes' : 'Schedule event'}
         </button>
         <button className="btn btn-secondary" onClick={onCancel}>Cancel</button>
@@ -822,10 +825,11 @@ function EventCard({ event, session, faded, onRefresh, onEdit }) {
             {isArrival?'→':'←'}
           </div>
           <div style={{flex:1,cursor:'pointer'}}>
-            <div style={{fontSize:13,fontWeight:600}}>{isArrival?'Arrival':'Departure'} — {event.name}</div>
+            <div style={{fontSize:13,fontWeight:600}}>{event.name}</div>
             <div style={{fontSize:11,color:'#666',marginTop:2}}>
-              Arrival: {format(new Date(event.event_date),'MMM d · h:mm a')}
-              {event.departure_date && ` · Departure: ${format(new Date(event.departure_date),'MMM d · h:mm a')}`}
+              <span style={{color:isArrival?'#1D9E75':'#854F0B',fontWeight:500}}>{isArrival?'→ Arrival':'← Departure'}</span>
+              {' '}{format(new Date(event.event_date),'MMM d · h:mm a')}
+              {event.departure_date && <span> · <span style={{color:'#854F0B',fontWeight:500}}>← Departure</span> {format(new Date(event.departure_date),'MMM d · h:mm a')}</span>}
               {' · '}{event.guest_count} guests{event.flying_in && ' · 🚁'}
             </div>
           </div>
