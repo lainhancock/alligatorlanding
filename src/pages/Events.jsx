@@ -513,17 +513,17 @@ function ScheduleForm({ form, setForm, selStructs, setSelStructs, boatState, set
       </div>
       <div className="content">
 
-        {/* Event type */}
+        {/* Arrival / Departure tabs */}
         <div className="form-group">
-          <label className="form-label">Event type</label>
-          <div style={{display:'flex',gap:8}}>
+          <label className="form-label">Date & time</label>
+          <div style={{display:'flex',gap:8,marginBottom:8}}>
             {['arrival','departure'].map(t => (
-              <button key={t} onClick={() => setForm({...form,event_type:t})} style={{
+              <button key={t} onClick={() => { setScheduleTab(t); setForm(f => ({...f, event_type: t})) }} style={{
                 flex:1, padding:'10px 8px', borderRadius:8,
-                border:`${form.event_type===t?'1.5px':'0.5px'} solid ${form.event_type===t?'#1A4F8A':'#ddd'}`,
-                background:form.event_type===t?'#E6F1FB':'none',
-                color:form.event_type===t?'#1A4F8A':'#666',
-                fontWeight:form.event_type===t?600:400,
+                border:`${scheduleTab===t?'1.5px':'0.5px'} solid ${scheduleTab===t?'#1A4F8A':'#ddd'}`,
+                background:scheduleTab===t?'#E6F1FB':'none',
+                color:scheduleTab===t?'#1A4F8A':'#666',
+                fontWeight:scheduleTab===t?600:400,
                 cursor:'pointer', fontFamily:'inherit', fontSize:13
               }}>
                 {t === 'arrival' ? '→ Arrival' : '← Departure'}
