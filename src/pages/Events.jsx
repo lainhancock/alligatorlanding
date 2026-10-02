@@ -88,12 +88,15 @@ export default function Events({ session }) {
     name: '',
     event_date: '',
     event_time: '14:00',
+    departure_date: '',
+    departure_time: '10:00',
     guest_count: 0,
     flying_in: false,
     meals_needed: false,
     notify_hours_before: 48,
     special_instructions: '',
   })
+  const [scheduleTab, setScheduleTab] = useState('arrival')
   const [selStructs, setSelStructs] = useState(new Set())
   const [boatState, setBoatState] = useState({})
   const [selBlinds, setSelBlinds] = useState(new Set())
@@ -108,17 +111,28 @@ export default function Events({ session }) {
     const dateStr = `${local.getFullYear()}-${String(local.getMonth()+1).padStart(2,'0')}-${String(local.getDate()).padStart(2,'0')}`
     const timeStr = `${String(local.getHours()).padStart(2,'0')}:${String(local.getMinutes()).padStart(2,'0')}`
 
+    // Parse departure date/time if present
+    let depDateStr = '', depTimeStr = '10:00'
+    if (event.departure_date) {
+      const depLocalStr = new Date(event.departure_date).toLocaleString('en-US', { timeZone: 'America/Chicago' })
+      const depLocal = new Date(depLocalStr)
+      depDateStr = `${depLocal.getFullYear()}-${String(depLocal.getMonth()+1).padStart(2,'0')}-${String(depLocal.getDate()).padStart(2,'0')}`
+      depTimeStr = `${String(depLocal.getHours()).padStart(2,'0')}:${String(depLocal.getMinutes()).padStart(2,'0')}`
+    }
     setForm({
       event_type: event.event_type || 'arrival',
       name: event.name || '',
       event_date: dateStr,
       event_time: timeStr,
+      departure_date: depDateStr,
+      departure_time: depTimeStr,
       guest_count: event.guest_count || 0,
       flying_in: event.flying_in || false,
       meals_needed: event.meals_needed || false,
       notify_hours_before: event.notify_hours_before || 48,
       special_instructions: event.special_instructions || '',
     })
+    setScheduleTab('arrival')
 
     // Load checklist to reconstruct selections
     const { data: items } = await supabase
@@ -210,10 +224,12 @@ export default function Events({ session }) {
 
     if (editingEvent) {
       // Update existing event
+      const depDate = form.departure_date ? form.departure_date + 'T' + form.departure_time + ':00' : null
       const { error } = await supabase.from('events').update({
         event_type: form.event_type,
         name: form.name,
         event_date: eventDate,
+        departure_date: depDate,
         guest_count: form.guest_count,
         flying_in: form.flying_in,
         notify_hours_before: form.notify_hours_before,
@@ -287,10 +303,12 @@ export default function Events({ session }) {
       return
     }
 
+    const departureDate = form.departure_date ? form.departure_date + 'T' + form.departure_time + ':00' : null
     const { data: event, error } = await supabase.from('events').insert({
       event_type: form.event_type,
       name: form.name,
       event_date: eventDate,
+      departure_date: departureDate,
       guest_count: form.guest_count,
       flying_in: form.flying_in,
       notify_hours_before: form.notify_hours_before,
@@ -370,7 +388,8 @@ export default function Events({ session }) {
   }
 
   function resetForm() {
-    setForm({ event_type:'arrival', name:'', event_date:'', event_time:'14:00', guest_count:0, flying_in:false, meals_needed:false, notify_hours_before:48, special_instructions:'' })
+    setForm({ event_type:'arrival', name:'', event_date:'', event_time:'14:00', departure_date:'', departure_time:'10:00', guest_count:0, flying_in:false, meals_needed:false, notify_hours_before:48, special_instructions:'' })
+    setScheduleTab('arrival')
     setSelStructs(new Set())
     setBoatState({})
     setSelBlinds(new Set())
@@ -385,6 +404,7 @@ export default function Events({ session }) {
   if (view === 'schedule') return (
     <ScheduleForm
       isEditing={!!editingEvent}
+      scheduleTab={scheduleTab} setScheduleTab={setScheduleTab}
       form={form} setForm={setForm}
       selStructs={selStructs} setSelStructs={setSelStructs}
       boatState={boatState} setBoatState={setBoatState}
@@ -436,7 +456,7 @@ export default function Events({ session }) {
   )
 }
 
-function ScheduleForm({ form, setForm, selStructs, setSelStructs, boatState, setBoatState, selBlinds, setSelBlinds, utvState, setUtvState, rvState, setRvState, alertSent, onAlertNow, onSave, onCancel, isEditing }) {
+function ScheduleForm({ form, setForm, selStructs, setSelStructs, boatState, setBoatState, selBlinds, setSelBlinds, utvState, setUtvState, rvState, setRvState, alertSent, onAlertNow, onSave, onCancel, isEditing, scheduleTab, setScheduleTab }) {
 
   function togStruct(s) {
     const next = new Set(selStructs)
@@ -517,16 +537,29 @@ function ScheduleForm({ form, setForm, selStructs, setSelStructs, boatState, set
           <input className="form-input" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="e.g. Johnson family, Hunting weekend…"/>
         </div>
 
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
-          <div className="form-group" style={{marginBottom:0}}>
-            <label className="form-label">Date</label>
-            <input className="form-input" type="date" value={form.event_date} onChange={e=>setForm({...form,event_date:e.target.value})}/>
+        {scheduleTab === 'arrival' ? (
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
+            <div className="form-group" style={{marginBottom:0}}>
+              <label className="form-label">Arrival date</label>
+              <input className="form-input" type="date" value={form.event_date} onChange={e=>setForm({...form,event_date:e.target.value})}/>
+            </div>
+            <div className="form-group" style={{marginBottom:0}}>
+              <label className="form-label">Arrival time</label>
+              <input className="form-input" type="time" value={form.event_time} onChange={e=>setForm({...form,event_time:e.target.value})}/>
+            </div>
           </div>
-          <div className="form-group" style={{marginBottom:0}}>
-            <label className="form-label">Time</label>
-            <input className="form-input" type="time" value={form.event_time} onChange={e=>setForm({...form,event_time:e.target.value})}/>
+        ) : (
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
+            <div className="form-group" style={{marginBottom:0}}>
+              <label className="form-label">Departure date</label>
+              <input className="form-input" type="date" value={form.departure_date} onChange={e=>setForm({...form,departure_date:e.target.value})}/>
+            </div>
+            <div className="form-group" style={{marginBottom:0}}>
+              <label className="form-label">Departure time</label>
+              <input className="form-input" type="time" value={form.departure_time} onChange={e=>setForm({...form,departure_time:e.target.value})}/>
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="form-group">
           <label className="form-label">Number of guests</label>
@@ -791,8 +824,9 @@ function EventCard({ event, session, faded, onRefresh, onEdit }) {
           <div style={{flex:1,cursor:'pointer'}}>
             <div style={{fontSize:13,fontWeight:600}}>{isArrival?'Arrival':'Departure'} — {event.name}</div>
             <div style={{fontSize:11,color:'#666',marginTop:2}}>
-              {format(new Date(event.event_date),'MMM d · h:mm a')} · {event.guest_count} guests
-              {event.flying_in && ' · 🚁'}
+              Arrival: {format(new Date(event.event_date),'MMM d · h:mm a')}
+              {event.departure_date && ` · Departure: ${format(new Date(event.departure_date),'MMM d · h:mm a')}`}
+              {' · '}{event.guest_count} guests{event.flying_in && ' · 🚁'}
             </div>
           </div>
           {/* Alert bell button */}
