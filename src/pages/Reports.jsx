@@ -71,6 +71,8 @@ export default function Reports({ session }) {
   const [loading, setLoading] = useState(true)
   const [data, setData] = useState(null)
   const [drillDown, setDrillDown] = useState(null) // { title, items }
+  const [selectedDay, setSelectedDay] = useState(null)
+  const [selectedWeek, setSelectedWeek] = useState(null)
 
   useEffect(() => { loadData() }, [period])
 
@@ -178,6 +180,31 @@ export default function Reports({ session }) {
     const totalEvents = events?.length || 0
     const avgGuests = totalEvents > 0 ? Math.round(events.reduce((s, e) => s + (e.guest_count || 0), 0) / totalEvents) : 0
 
+    // ── CALENDAR DATA ──────────────────────────────────────
+    // Daily: group all occurrences by date
+    const byDay = {}
+    occurrences?.forEach(o => {
+      if (!byDay[o.due_date]) byDay[o.due_date] = { total: 0, completed: 0, tasks: [] }
+      byDay[o.due_date].total++
+      if (o.status === 'completed') byDay[o.due_date].completed++
+      byDay[o.due_date].tasks.push(o)
+    })
+
+    // Weekly: group by ISO week (Monday-based)
+    const byWeek = {}
+    occurrences?.forEach(o => {
+      if (!o.task?.frequency === 'weekly') return
+      const d = new Date(o.due_date)
+      const day = d.getDay()
+      const monday = new Date(d)
+      monday.setDate(d.getDate() - ((day + 6) % 7))
+      const weekKey = monday.toISOString().slice(0, 10)
+      if (!byWeek[weekKey]) byWeek[weekKey] = { total: 0, completed: 0, tasks: [] }
+      byWeek[weekKey].total++
+      if (o.status === 'completed') byWeek[weekKey].completed++
+      byWeek[weekKey].tasks.push(o)
+    })
+
     setData({
       rawOccurrences: occurrences,
       rawWorkOrders: workOrders,
@@ -189,6 +216,8 @@ export default function Reports({ session }) {
       animals: { total: totalAnimals, bySpecies: bySpeciesMap, value: totalValue, bornOnProperty },
       feeders: { low: lowFeeders, avgFill, total: feeders?.length || 0 },
       events: { total: totalEvents, avgGuests },
+      byDay,
+      byWeek,
     })
     setLoading(false)
   }
@@ -262,6 +291,121 @@ export default function Reports({ session }) {
           }}>{p.label}</button>
         ))}
       </div>
+
+      {/* ── CALENDAR ── */}
+      <SectionHeader title="Daily task calendar"/>
+      <div style={{background:'#fff',border:'0.5px solid #ddd',borderRadius:8,padding:12,marginBottom:8}}>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:3,marginBottom:8}}>
+          {['M','T','W','T','F','S','S'].map((d,i) => (
+            <div key={i} style={{textAlign:'center',fontSize:9,color:'#aaa',fontWeight:600,paddingBottom:4}}>{d}</div>
+          ))}
+          {(() => {
+            const today = new Date()
+            const days = []
+            // Build array of dates in period
+            for (let i = period - 1; i >= 0; i--) {
+              const d = new Date(today)
+              d.setDate(today.getDate() - i)
+              days.push(d.toISOString().slice(0, 10))
+            }
+            // Pad start to align to Monday
+            const firstDay = new Date(days[0])
+            const startPad = (firstDay.getDay() + 6) % 7
+            const cells = []
+            for (let i = 0; i < startPad; i++) cells.push(<div key={`pad-${i}`}/>)
+            days.forEach(dateStr => {
+              const dayData = d.byDay?.[dateStr]
+              const isToday = dateStr === today.toISOString().slice(0, 10)
+              const isFuture = dateStr > today.toISOString().slice(0, 10)
+              const dayNum = new Date(dateStr).getDate()
+              let bg = '#f5f5f5'
+              let color = '#aaa'
+              if (!isFuture && dayData) {
+                if (dayData.completed === dayData.total) { bg = '#EAF3DE'; color = '#3B6D11' }
+                else if (dayData.completed === 0) { bg = '#FCEBEB'; color = '#A32D2D' }
+                else { bg = '#FEF3E2'; color = '#854F0B' }
+              }
+              cells.push(
+                <div key={dateStr} onClick={() => !isFuture && dayData && setSelectedDay(selectedDay === dateStr ? null : dateStr)}
+                  style={{aspectRatio:'1',borderRadius:4,background:bg,display:'flex',alignItems:'center',justifyContent:'center',
+                    fontSize:9,fontWeight:600,color,cursor:dayData&&!isFuture?'pointer':'default',
+                    border:isToday?'1.5px solid #1A4F8A':'1.5px solid transparent',
+                    outline:selectedDay===dateStr?'2px solid #1A4F8A':'none'}}>
+                  {dayNum}
+                </div>
+              )
+            })
+            return cells
+          })()}
+        </div>
+        <div style={{display:'flex',gap:12,fontSize:10,color:'#888',justifyContent:'center',marginTop:4}}>
+          <span><span style={{display:'inline-block',width:8,height:8,borderRadius:2,background:'#EAF3DE',marginRight:3}}/>All done</span>
+          <span><span style={{display:'inline-block',width:8,height:8,borderRadius:2,background:'#FEF3E2',marginRight:3}}/>Partial</span>
+          <span><span style={{display:'inline-block',width:8,height:8,borderRadius:2,background:'#FCEBEB',marginRight:3}}/>Missed</span>
+        </div>
+      </div>
+      {selectedDay && d.byDay?.[selectedDay] && (
+        <div style={{background:'#fff',border:'0.5px solid #ddd',borderRadius:8,padding:12,marginBottom:8}}>
+          <div style={{fontSize:12,fontWeight:600,color:'#333',marginBottom:8}}>
+            {new Date(selectedDay).toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'})}
+            {' — '}{d.byDay[selectedDay].completed}/{d.byDay[selectedDay].total} completed
+          </div>
+          {d.byDay[selectedDay].tasks.map((t, i) => (
+            <div key={i} style={{display:'flex',alignItems:'center',gap:8,padding:'6px 0',borderBottom:'0.5px solid #f5f5f5'}}>
+              <span style={{fontSize:14}}>{t.status==='completed'?'✅':'❌'}</span>
+              <div>
+                <div style={{fontSize:12,fontWeight:500,color:'#333'}}>{t.task?.title||'Unknown'}</div>
+                <div style={{fontSize:10,color:'#888'}}>{t.assigned_profile?.full_name||t.task?.assigned_to_name||'Unassigned'}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── WEEKLY CALENDAR ── */}
+      <SectionHeader title="Weekly task history"/>
+      <div style={{background:'#fff',border:'0.5px solid #ddd',borderRadius:8,padding:12,marginBottom:8}}>
+        {Object.keys(d.byWeek||{}).length === 0 ? (
+          <div style={{fontSize:12,color:'#aaa',textAlign:'center',padding:'8px 0'}}>No weekly task data in this period</div>
+        ) : (
+          Object.entries(d.byWeek||{}).sort((a,b)=>b[0].localeCompare(a[0])).map(([weekKey, weekData]) => {
+            const rate = weekData.total > 0 ? Math.round((weekData.completed/weekData.total)*100) : 0
+            const bg = rate===100?'#EAF3DE':rate===0?'#FCEBEB':'#FEF3E2'
+            const color = rate===100?'#3B6D11':rate===0?'#A32D2D':'#854F0B'
+            const weekEnd = new Date(weekKey)
+            weekEnd.setDate(weekEnd.getDate() + 6)
+            return (
+              <div key={weekKey} onClick={() => setSelectedWeek(selectedWeek===weekKey?null:weekKey)}
+                style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'8px 0',borderBottom:'0.5px solid #f5f5f5',cursor:'pointer'}}>
+                <div style={{fontSize:12,color:'#333'}}>
+                  Week of {new Date(weekKey).toLocaleDateString('en-US',{month:'short',day:'numeric'})}
+                </div>
+                <div style={{display:'flex',alignItems:'center',gap:8}}>
+                  <div style={{fontSize:11,color:'#888'}}>{weekData.completed}/{weekData.total}</div>
+                  <div style={{background:bg,color,fontSize:11,fontWeight:600,padding:'2px 8px',borderRadius:10}}>{rate}%</div>
+                </div>
+              </div>
+            )
+          })
+        )}
+      </div>
+      {selectedWeek && d.byWeek?.[selectedWeek] && (
+        <div style={{background:'#fff',border:'0.5px solid #ddd',borderRadius:8,padding:12,marginBottom:8}}>
+          <div style={{fontSize:12,fontWeight:600,color:'#333',marginBottom:8}}>
+            Week of {new Date(selectedWeek).toLocaleDateString('en-US',{month:'short',day:'numeric'})}
+            {' — '}{d.byWeek[selectedWeek].completed}/{d.byWeek[selectedWeek].total} completed
+          </div>
+          {d.byWeek[selectedWeek].tasks.map((t, i) => (
+            <div key={i} style={{display:'flex',alignItems:'center',gap:8,padding:'6px 0',borderBottom:'0.5px solid #f5f5f5'}}>
+              <span style={{fontSize:14}}>{t.status==='completed'?'✅':'❌'}</span>
+              <div>
+                <div style={{fontSize:12,fontWeight:500,color:'#333'}}>{t.task?.title||'Unknown'}</div>
+                <div style={{fontSize:10,color:'#888'}}>{t.due_date}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* ── TASKS ── */}
       <SectionHeader title="Task completion"/>
