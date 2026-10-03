@@ -97,9 +97,9 @@ export default function Events({ session }) {
     special_instructions: '',
   })
   const [scheduleTab, setScheduleTab] = useState('arrival')
-  const [selStructs, setSelStructs] = useState(new Set())
+  const [selStructs, setSelStructs] = useState([])
   const [boatState, setBoatState] = useState({})
-  const [selBlinds, setSelBlinds] = useState(new Set())
+  const [selBlinds, setSelBlinds] = useState([])
   const [utvState, setUtvState] = useState({})
   const [rvState, setRvState] = useState({})
 
@@ -142,10 +142,10 @@ export default function Events({ session }) {
 
     if (items) {
       // Reconstruct structures
-      const structs = new Set()
+      const structs = []
       items.filter(i => i.section === 'Structures').forEach(i => {
         const match = i.title.match(/Walk-through & inspect — (.+)/)
-        if (match) structs.add(match[1])
+        if (match && !structs.includes(match[1])) structs.push(match[1])
       })
       setSelStructs(structs)
 
@@ -166,12 +166,12 @@ export default function Events({ session }) {
       setBoatState(boats)
 
       // Reconstruct blinds
-      const blinds = new Set()
+      const blinds = []
       items.filter(i => i.section === 'Hunting blinds').forEach(i => {
         const match = i.title.match(/^(.+) — inspect/)
         if (match) {
           const blind = BLINDS.find(b => b.name === match[1])
-          if (blind) blinds.add(blind.id)
+          if (blind && !blinds.includes(blind.id)) blinds.push(blind.id)
         }
       })
       setSelBlinds(blinds)
@@ -220,9 +220,9 @@ export default function Events({ session }) {
   }
 
   async function saveEvent(selections = {}) {
-    const sel_structs = selections.selStructs || new Set()
+    const sel_structs = selections.selStructs || []
     const boat_state = selections.boatState || {}
-    const sel_blinds = selections.selBlinds || new Set()
+    const sel_blinds = selections.selBlinds || []
     const utv_state = selections.utvState || {}
     const rv_state = selections.rvState || {}
     // Store datetime as-is (local time) — no timezone conversion
@@ -396,9 +396,9 @@ export default function Events({ session }) {
   function resetForm() {
     setForm({ event_type:'arrival', name:'', event_date:'', event_time:'14:00', departure_date:'', departure_time:'10:00', guest_count:0, flying_in:false, meals_needed:false, notify_hours_before:48, special_instructions:'' })
     setScheduleTab('arrival')
-    setSelStructs(new Set())
+    setSelStructs([])
     setBoatState({})
-    setSelBlinds(new Set())
+    setSelBlinds([])
     setUtvState({})
     setRvState({})
     setAlertSent(null)
@@ -465,9 +465,7 @@ export default function Events({ session }) {
 function ScheduleForm({ form, setForm, selStructs, setSelStructs, boatState, setBoatState, selBlinds, setSelBlinds, utvState, setUtvState, rvState, setRvState, alertSent, onAlertNow, onSave, onCancel, isEditing, scheduleTab, setScheduleTab }) {
 
   function togStruct(s) {
-    const next = new Set(selStructs)
-    next.has(s) ? next.delete(s) : next.add(s)
-    setSelStructs(next)
+    setSelStructs(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s])
   }
 
   function togBoat(id, val) {
@@ -482,9 +480,7 @@ function ScheduleForm({ form, setForm, selStructs, setSelStructs, boatState, set
   }
 
   function togBlind(id) {
-    const next = new Set(selBlinds)
-    next.has(id) ? next.delete(id) : next.add(id)
-    setSelBlinds(next)
+    setSelBlinds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
   }
 
   function togUTV(id, val) {
@@ -605,9 +601,9 @@ function ScheduleForm({ form, setForm, selStructs, setSelStructs, boatState, set
           {STRUCTURES.map(s => (
             <button key={s} onClick={() => togStruct(s)} style={{
               padding:'8px', borderRadius:8,
-              border:`${selStructs.has(s)?'1.5px':'0.5px'} solid ${selStructs.has(s)?'#378ADD':'#ddd'}`,
-              background:selStructs.has(s)?'#E6F1FB':'none',
-              color:selStructs.has(s)?'#0C447C':'#666',
+              border:`${selStructs.includes(s)?'1.5px':'0.5px'} solid ${selStructs.includes(s)?'#378ADD':'#ddd'}`,
+              background:selStructs.includes(s)?'#E6F1FB':'none',
+              color:selStructs.includes(s)?'#0C447C':'#666',
               fontSize:11, cursor:'pointer', fontFamily:'inherit'
             }}>{s}</button>
           ))}
