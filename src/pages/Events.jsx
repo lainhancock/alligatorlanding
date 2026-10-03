@@ -225,6 +225,7 @@ export default function Events({ session }) {
     const sel_blinds = selections.selBlinds || []
     const utv_state = selections.utvState || {}
     const rv_state = selections.rvState || {}
+    console.log('saveEvent selections:', JSON.stringify({ sel_structs, boat_state, sel_blinds, utv_state }))
     // Store datetime as-is (local time) — no timezone conversion
     const eventDate = form.event_date + 'T' + form.event_time + ':00'
     
