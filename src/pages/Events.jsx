@@ -643,7 +643,7 @@ function ScheduleForm({ form, setForm, selStructs, setSelStructs, boatState, set
         </div>
         <div style={{display:'flex',flexWrap:'wrap',gap:4,marginBottom:12}}>
           {BLINDS.map(b => {
-            const on = selBlinds.has(b.id)
+            const on = selBlinds.includes(b.id)
             return (
               <button key={b.id} onClick={() => togBlind(b.id)} style={{
                 display:'inline-flex',alignItems:'center',gap:5,
