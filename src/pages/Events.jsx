@@ -220,14 +220,17 @@ export default function Events({ session }) {
   }
 
   async function saveEvent(selections = {}) {
-    const { selStructs: sel_structs = selStructs, boatState: boat_state = boatState, selBlinds: sel_blinds = selBlinds, utvState: utv_state = utvState, rvState: rv_state = rvState } = selections
-    // Build datetime strings with CST offset to prevent UTC shift
-    const cstOffset = '-06:00' // CST (use -05:00 during CDT if needed)
-    const eventDate = form.event_date + 'T' + form.event_time + ':00' + cstOffset
+    const sel_structs = selections.selStructs || new Set()
+    const boat_state = selections.boatState || {}
+    const sel_blinds = selections.selBlinds || new Set()
+    const utv_state = selections.utvState || {}
+    const rv_state = selections.rvState || {}
+    // Store datetime as-is (local time) — no timezone conversion
+    const eventDate = form.event_date + 'T' + form.event_time + ':00'
     
     if (editingEvent) {
       // Update existing event
-      const depDate = form.departure_date ? form.departure_date + 'T' + form.departure_time + ':00' + cstOffset : null
+      const depDate = form.departure_date ? form.departure_date + 'T' + form.departure_time + ':00' : null
       const { error } = await supabase.from('events').update({
         event_type: form.event_type,
         name: form.name,
@@ -306,7 +309,7 @@ export default function Events({ session }) {
       return
     }
 
-    const departureDate = form.departure_date ? form.departure_date + 'T' + form.departure_time + ':00' + cstOffset : null
+    const departureDate = form.departure_date ? form.departure_date + 'T' + form.departure_time + ':00' : null
     const { data: event, error } = await supabase.from('events').insert({
       event_type: form.event_type,
       name: form.name,
@@ -516,53 +519,32 @@ function ScheduleForm({ form, setForm, selStructs, setSelStructs, boatState, set
       </div>
       <div className="content">
 
-        {/* Arrival / Departure tabs */}
-        <div className="form-group">
-          <label className="form-label">Date & time</label>
-          <div style={{display:'flex',gap:8,marginBottom:8}}>
-            {['arrival','departure'].map(t => (
-              <button key={t} onClick={() => { setScheduleTab(t); setForm(f => ({...f, event_type: t})) }} style={{
-                flex:1, padding:'10px 8px', borderRadius:8,
-                border:`${scheduleTab===t?'1.5px':'0.5px'} solid ${scheduleTab===t?'#1A4F8A':'#ddd'}`,
-                background:scheduleTab===t?'#E6F1FB':'none',
-                color:scheduleTab===t?'#1A4F8A':'#666',
-                fontWeight:scheduleTab===t?600:400,
-                cursor:'pointer', fontFamily:'inherit', fontSize:13
-              }}>
-                {t === 'arrival' ? '→ Arrival' : '← Departure'}
-              </button>
-            ))}
-          </div>
-        </div>
-
         <div className="form-group">
           <label className="form-label">Event name</label>
           <input className="form-input" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="e.g. Johnson family, Hunting weekend…"/>
         </div>
 
-        {scheduleTab === 'arrival' ? (
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
-            <div className="form-group" style={{marginBottom:0}}>
-              <label className="form-label">Arrival date</label>
-              <input className="form-input" type="date" value={form.event_date} onChange={e=>setForm({...form,event_date:e.target.value})}/>
-            </div>
-            <div className="form-group" style={{marginBottom:0}}>
-              <label className="form-label">Arrival time</label>
-              <input className="form-input" type="time" value={form.event_time} onChange={e=>setForm({...form,event_time:e.target.value})}/>
-            </div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
+          <div className="form-group" style={{marginBottom:0}}>
+            <label className="form-label">Arrival date</label>
+            <input className="form-input" type="date" value={form.event_date} onChange={e=>setForm({...form,event_date:e.target.value})}/>
           </div>
-        ) : (
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
-            <div className="form-group" style={{marginBottom:0}}>
-              <label className="form-label">Departure date</label>
-              <input className="form-input" type="date" value={form.departure_date} onChange={e=>setForm({...form,departure_date:e.target.value})}/>
-            </div>
-            <div className="form-group" style={{marginBottom:0}}>
-              <label className="form-label">Departure time</label>
-              <input className="form-input" type="time" value={form.departure_time} onChange={e=>setForm({...form,departure_time:e.target.value})}/>
-            </div>
+          <div className="form-group" style={{marginBottom:0}}>
+            <label className="form-label">Arrival time</label>
+            <input className="form-input" type="time" value={form.event_time} onChange={e=>setForm({...form,event_time:e.target.value})}/>
           </div>
-        )}
+        </div>
+
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
+          <div className="form-group" style={{marginBottom:0}}>
+            <label className="form-label">Departure date</label>
+            <input className="form-input" type="date" value={form.departure_date} onChange={e=>setForm({...form,departure_date:e.target.value})}/>
+          </div>
+          <div className="form-group" style={{marginBottom:0}}>
+            <label className="form-label">Departure time</label>
+            <input className="form-input" type="time" value={form.departure_time} onChange={e=>setForm({...form,departure_time:e.target.value})}/>
+          </div>
+        </div>
 
         <div className="form-group">
           <label className="form-label">Number of guests</label>
