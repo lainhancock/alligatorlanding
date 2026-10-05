@@ -2,12 +2,10 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { format } from 'date-fns'
 
-const SPECIES = ['Whitetail','Axis','Elk','Gemsbok','Addax','Iranian Red Sheep','Blackbuck','Other']
+const SPECIES = ['Whitetail','Axis','Elk','Gemsbok','Addax','Kudu','Oryx','Blue Wildebeest','White-Bearded Wildebeest','Black Wildebeest','Red Lechwe','Iranian Red Sheep','Blackbuck','Other']
 const SEX_OPTIONS = ['Buck','Doe','Bull','Cow','Ram','Ewe','Unknown']
 const STATUS_OPTIONS = ['Active','Harvested','Deceased','Sold']
 const ACQ_TYPES = ['Purchased','Born on property']
-const EDITORS = ['Lain Hancock','Clare Bambury','Scott Holcomb','Trace']
-
 const SPECIES_CONFIG = {
   'Whitetail':          { emoji:'🦌', color:'#854F0B', bg:'#FAEEDA' },
   'Axis':               { emoji:'🦌', color:'#3B6D11', bg:'#EAF3DE' },
@@ -16,6 +14,12 @@ const SPECIES_CONFIG = {
   'Addax':              { emoji:'🐂', color:'#72243E', bg:'#FBEAF0' },
   'Iranian Red Sheep':  { emoji:'🐏', color:'#A32D2D', bg:'#FCEBEB' },
   'Blackbuck':          { emoji:'🦌', color:'#3C3489', bg:'#EEEDFE' },
+  'Kudu':               { emoji:'🦌', color:'#854F0B', bg:'#FAEEDA' },
+  'Oryx':               { emoji:'🦌', color:'#555',    bg:'#f0f0f0' },
+  'Blue Wildebeest':    { emoji:'🦌', color:'#185FA5', bg:'#E6F1FB' },
+  'White-Bearded Wildebeest': { emoji:'🦌', color:'#3B6D11', bg:'#EAF3DE' },
+  'Black Wildebeest':   { emoji:'🦌', color:'#333',    bg:'#f0f0f0' },
+  'Red Lechwe':         { emoji:'🦌', color:'#A32D2D', bg:'#FCEBEB' },
   'Other':              { emoji:'🐾', color:'#555',    bg:'#F1EFE8' },
 }
 
@@ -27,8 +31,7 @@ const STATUS_CONFIG = {
 }
 
 function canEdit(profile) {
-  return profile?.role === 'owner' || profile?.role === 'admin' ||
-    EDITORS.includes(profile?.full_name)
+  return profile?.role === 'owner' || profile?.role === 'admin' || profile?.role === 'caretaker'
 }
 
 export default function Animals({ session }) {
