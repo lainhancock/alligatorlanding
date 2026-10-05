@@ -17,6 +17,7 @@ const SPECIES_CONFIG = {
   'Other':              { emoji:'🐾', color:'#555',    bg:'#F1EFE8' },
 }
 
+
 const STATUS_CONFIG = {
   'Active':    { color:'#3B6D11', bg:'#EAF3DE' },
   'Harvested': { color:'#854F0B', bg:'#FAEEDA' },
