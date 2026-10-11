@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { sendSMS } from '../lib/sms'
 import { format } from 'date-fns'
 
 const SPECIES = ['Whitetail','Axis','Elk','Gemsbok','Addax','Kudu','Oryx','Blue Wildebeest','White-Bearded Wildebeest','Black Wildebeest','Red Lechwe','Iranian Red Sheep','Blackbuck','Other']
@@ -117,6 +118,19 @@ export default function Animals({ session }) {
     loadAll()
   }
 
+  async function notifyAnimal(action, species, tagNumber) {
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('full_name, phone')
+      .in('full_name', ['Lain Hancock', 'Trace'])
+      .not('phone', 'is', null)
+    const tag = tagNumber ? ` (${tagNumber})` : ''
+    const msg = `Alligator Landing: Animal inventory update — ${action} ${species}${tag}. View at alligatorlanding.com. Reply STOP to opt out.`
+    for (const p of profiles || []) {
+      await sendSMS(p.phone, msg)
+    }
+  }
+
   async function saveAnimal() {
     if (!form.species) return
     const payload = {
@@ -134,6 +148,7 @@ export default function Animals({ session }) {
     }
     if (isEditing && selected) {
       await supabase.from('animal_inventory').update(payload).eq('id', selected.id)
+      notifyAnimal('Updated', form.species, form.tag_number)
     } else {
       const { data } = await supabase.from('animal_inventory').insert({ ...payload, created_by: session.user.id }).select().single()
       if (data) {
@@ -143,6 +158,7 @@ export default function Animals({ session }) {
           notes: form.acquisition_type === 'Purchased' ? `Purchased from ${form.source||'unknown'}` : 'Born on property',
           logged_by: session.user.id
         })
+        notifyAnimal('Added', form.species, form.tag_number)
       }
     }
     resetForm()
@@ -165,6 +181,7 @@ export default function Animals({ session }) {
       notes: statusForm.status_notes || null,
       logged_by: session.user.id
     })
+    notifyAnimal(`Status changed to ${statusForm.status} —`, selected.species, selected.tag_number)
     setShowStatusChange(false)
     setStatusForm({ status: 'Active', status_date: '', status_notes: '' })
     const { data } = await supabase.from('animal_inventory').select('*').eq('id', selected.id).single()
