@@ -60,13 +60,14 @@ export default function Today({ session }) {
     const filtered = occurrences.filter(o => o.due_date <= today)
     const todayOccs = filtered.filter(o => o.due_date === today && o.status !== 'completed')
     const completedOccs = filtered.filter(o => o.due_date === today && o.status === 'completed')
-    const pastOccs = filtered.filter(o => o.due_date < today && (o.status === 'pending' || o.status === 'needs_attention'))
+    const pastOccs = filtered.filter(o => o.due_date < today && (o.status === 'pending' || o.status === 'needs_attention' || o.status === 'skipped'))
 
-    // Keep only most recent overdue occurrence per task
+    // Keep only most recent past occurrence per task, skip if task already has a today occurrence
+    const todayTaskIds = new Set(todayOccs.map(o => o.task_id))
     const seenTasks = new Set()
     const dedupedPast = []
     for (const o of [...pastOccs].sort((a,b) => b.due_date.localeCompare(a.due_date))) {
-      if (!seenTasks.has(o.task_id)) {
+      if (!seenTasks.has(o.task_id) && !todayTaskIds.has(o.task_id)) {
         seenTasks.add(o.task_id)
         dedupedPast.push(o)
       }
