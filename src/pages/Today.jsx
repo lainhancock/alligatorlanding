@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
+import { sendSMS } from '../lib/sms'
 import { format } from 'date-fns'
 
 const CATS = {
@@ -14,6 +15,19 @@ const CATS = {
   'Firearms & Range': { bg: '#FAEEDA', color: '#633806' },
   'Safety & Emergency': { bg: '#E6F1FB', color: '#0C447C' },
   'Seasonal Projects': { bg: '#E1F5EE', color: '#085041' },
+}
+
+async function notifyTaskAlert(supabase, taskTitle, action, note) {
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('full_name, phone')
+    .in('full_name', ['Lain Hancock', 'Trace'])
+    .not('phone', 'is', null)
+  const noteText = note ? ` — "${note}"` : ''
+  const msg = `Alligator Landing: Task "${taskTitle}" was marked ${action}${noteText}. View at alligatorlanding.com. Reply STOP to opt out.`
+  for (const p of profiles || []) {
+    await sendSMS(p.phone, msg)
+  }
 }
 
 export default function Today({ session }) {
@@ -291,6 +305,7 @@ export default function Today({ session }) {
                 status:'needs_attention',
                 attention_note: reason || null
               }).eq('id', selected.id)
+              notifyTaskAlert(supabase, selected.task?.title || 'Task', 'Needs attention', reason)
               setSelected(null); loadTasks()
             }}>⚠ Needs attention</button>
             <button className="btn btn-secondary" onClick={async () => {
@@ -299,6 +314,7 @@ export default function Today({ session }) {
                 status:'skipped',
                 skip_note: note || null
               }).eq('id', selected.id)
+              notifyTaskAlert(supabase, selected.task?.title || 'Task', 'Skipped', note)
               setSelected(null); loadTasks()
             }}>Skip with note</button>
           </>
