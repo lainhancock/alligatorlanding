@@ -267,6 +267,12 @@ export default function Today({ session }) {
           <div><p style={{fontSize:10,color:'#888'}}>Photo req.</p><p style={{fontSize:12,fontWeight:500}}>{selected.task?.photo_required ? 'Yes' : 'No'}</p></div>
           <div><p style={{fontSize:10,color:'#888'}}>Completed by</p><p style={{fontSize:12,fontWeight:500}}>{selected.status==='completed'?(selected.completion?.profiles?.full_name||selected.assigned_profile?.full_name||'—'):'Pending'}</p></div>
         </div>
+        {selected.status === 'needs_attention' && selected.attention_note && (
+          <div style={{background:'#FEF3E2',borderRadius:8,padding:'10px 12px',marginBottom:12,border:'0.5px solid #EF9F27'}}>
+            <div style={{fontSize:10,color:'#854F0B',marginBottom:3,fontWeight:600}}>⚠ Needs attention</div>
+            <div style={{fontSize:13,color:'#333'}}>{selected.attention_note}</div>
+          </div>
+        )}
         {selected.status === 'skipped' && selected.skip_note && (
           <div style={{background:'#f5f5f5',borderRadius:8,padding:'10px 12px',marginBottom:12}}>
             <div style={{fontSize:10,color:'#888',marginBottom:3}}>Skip note</div>
@@ -279,7 +285,12 @@ export default function Today({ session }) {
           <>
             <button className="btn btn-success" onClick={() => setSignOff(true)}>✓ Mark complete</button>
             <button className="btn btn-warn" onClick={async () => {
-              await supabase.from('task_occurrences').update({status:'needs_attention'}).eq('id', selected.id)
+              const reason = window.prompt('What needs attention?')
+              if (reason === null) return // cancelled
+              await supabase.from('task_occurrences').update({
+                status:'needs_attention',
+                attention_note: reason || null
+              }).eq('id', selected.id)
               setSelected(null); loadTasks()
             }}>⚠ Needs attention</button>
             <button className="btn btn-secondary" onClick={async () => {
@@ -400,7 +411,6 @@ export default function Today({ session }) {
             {key:'overdue', label:'Overdue'},
             {key:'pending', label:'Today'},
             {key:'skipped', label:'Skipped'},
-            {key:'done', label:'Done'},
           ].map(f => (
             <button key={f.key} className={`filter-pill${filter===f.key?' active':''}`} onClick={() => setFilter(f.key)}>
               {f.label}
@@ -417,7 +427,7 @@ export default function Today({ session }) {
 
         {loading ? (
           <p style={{textAlign:'center',color:'#888',padding:'32px 0',fontSize:13}}>Loading tasks…</p>
-        ) : overdue.length === 0 && pending.length === 0 && needsAttn.length === 0 && skipped.length === 0 && filter !== 'done' ? (
+        ) : overdue.length === 0 && pending.length === 0 && needsAttn.length === 0 && skipped.length === 0 ? (
           <div style={{textAlign:'center',padding:'48px 0'}}>
             <p style={{fontSize:32,marginBottom:10}}>✅</p>
             <p style={{fontSize:15,fontWeight:600,color:'#333',marginBottom:4}}>All caught up!</p>
@@ -454,14 +464,11 @@ export default function Today({ session }) {
                 {pending.map(t => <TaskCard key={t.id} task={t} onClick={() => openTask(t)} />)}
               </>
             )}
-            {filter === 'done' && done.length > 0 && (
+            {(filter === 'all') && done.length > 0 && (
               <>
                 <div className="section-label">Completed ({done.length})</div>
                 {done.map(t => <TaskCard key={t.id} task={t} onClick={() => openTask(t)} />)}
               </>
-            )}
-            {filter === 'done' && done.length === 0 && (
-              <div style={{textAlign:'center',padding:'32px 0',color:'#888',fontSize:13}}>No completed tasks in this period.</div>
             )}
           </>
         )}
@@ -562,6 +569,8 @@ function TaskCard({ task, onClick }) {
           : <span className="badge badge-due">Due</span>}
           {task.task?.asset?.name ? ` · ${task.task.asset.name}` : ''}
           {status === 'completed' && task.completion?.profiles?.full_name ? ` · ${task.completion.profiles.full_name}` : ''}
+          {task.status === 'needs_attention' && task.attention_note ? <div style={{fontSize:11,color:'#854F0B',marginTop:2}}>⚠ {task.attention_note}</div> : null}
+          {task.status === 'skipped' && task.skip_note ? <div style={{fontSize:11,color:'#888',marginTop:2}}>Skipped: {task.skip_note}</div> : null}
         </div>
       </div>
       <div className={`check-btn${status==='completed'?' done':''}`}>
