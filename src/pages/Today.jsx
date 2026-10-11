@@ -58,7 +58,8 @@ export default function Today({ session }) {
     if (!occurrences || occurrences.length === 0) { setTasks([]); setLoading(false); return }
     // Filter to today and past, dedupe overdue to show only most recent per task
     const filtered = occurrences.filter(o => o.due_date <= today)
-    const todayOccs = filtered.filter(o => o.due_date === today)
+    const todayOccs = filtered.filter(o => o.due_date === today && o.status !== 'completed')
+    const completedOccs = filtered.filter(o => o.due_date === today && o.status === 'completed')
     const pastOccs = filtered.filter(o => o.due_date < today && (o.status === 'pending' || o.status === 'needs_attention'))
 
     // Keep only most recent overdue occurrence per task
@@ -212,8 +213,10 @@ export default function Today({ session }) {
   const today = new Date(new Date().toLocaleString('en-US', {timeZone: 'America/Chicago'})).toLocaleDateString('en-CA')
   // due_date may come back as full timestamp — normalize to date string
   const normalize = (d) => d ? d.substring(0, 10) : ''
-  const overdue = tasks.filter(t => t.status !== 'completed' && t.status !== 'skipped' && normalize(t.due_date) < today)
-  const pending = tasks.filter(t => (t.status === 'pending' || t.status === 'needs_attention') && normalize(t.due_date) <= today)
+  const needsAttn = tasks.filter(t => t.status === 'needs_attention')
+  const skipped = tasks.filter(t => t.status === 'skipped')
+  const overdue = tasks.filter(t => t.status === 'pending' && normalize(t.due_date) < today)
+  const pending = tasks.filter(t => t.status === 'pending' && normalize(t.due_date) === today)
   const done = tasks.filter(t => t.status === 'completed')
   const total = tasks.length
   const doneCount = done.length
@@ -262,6 +265,14 @@ export default function Today({ session }) {
           <div><p style={{fontSize:10,color:'#888'}}>Priority</p><p style={{fontSize:12,fontWeight:500}}>{selected.task?.priority || 'normal'}</p></div>
           <div><p style={{fontSize:10,color:'#888'}}>Photo req.</p><p style={{fontSize:12,fontWeight:500}}>{selected.task?.photo_required ? 'Yes' : 'No'}</p></div>
           <div><p style={{fontSize:10,color:'#888'}}>Completed by</p><p style={{fontSize:12,fontWeight:500}}>{selected.status==='completed'?(selected.completion?.profiles?.full_name||selected.assigned_profile?.full_name||'—'):'Pending'}</p></div>
+        </div>
+        {selected.status === 'skipped' && selected.skip_note && (
+          <div style={{background:'#f5f5f5',borderRadius:8,padding:'10px 12px',marginBottom:12}}>
+            <div style={{fontSize:10,color:'#888',marginBottom:3}}>Skip note</div>
+            <div style={{fontSize:13,color:'#333'}}>{selected.skip_note}</div>
+          </div>
+        )}
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
         </div>
         {selected.status !== 'completed' && (
           <>
@@ -376,15 +387,22 @@ export default function Today({ session }) {
           </svg>
           <div>
             <div style={{fontSize:15,fontWeight:600,color:'#0C447C'}}>{doneCount} of {total} tasks done</div>
-            <div style={{fontSize:12,color:'#185FA5',marginTop:2}}>{overdue.length} overdue · {pending.length} remaining</div>
+            <div style={{fontSize:12,color:'#185FA5',marginTop:2}}>{needsAttn.length>0?`${needsAttn.length} needs attention · `:''}{overdue.length} overdue · {pending.length} remaining</div>
           </div>
         </div>
 
         {/* Filter pills */}
         <div style={{display:'flex',gap:5,marginBottom:10,flexWrap:'wrap'}}>
-          {['all','overdue','pending','done'].map(f => (
-            <button key={f} className={`filter-pill${filter===f?' active':''}`} onClick={() => setFilter(f)}>
-              {f.charAt(0).toUpperCase()+f.slice(1)}
+          {[
+            {key:'all', label:'All'},
+            {key:'attention', label:'⚠ Needs attention'},
+            {key:'overdue', label:'Overdue'},
+            {key:'pending', label:'Today'},
+            {key:'skipped', label:'Skipped'},
+            {key:'done', label:'Done'},
+          ].map(f => (
+            <button key={f.key} className={`filter-pill${filter===f.key?' active':''}`} onClick={() => setFilter(f.key)}>
+              {f.label}
             </button>
           ))}
         </div>
@@ -398,7 +416,7 @@ export default function Today({ session }) {
 
         {loading ? (
           <p style={{textAlign:'center',color:'#888',padding:'32px 0',fontSize:13}}>Loading tasks…</p>
-        ) : overdue.length === 0 && pending.length === 0 && filter !== 'done' ? (
+        ) : overdue.length === 0 && pending.length === 0 && needsAttn.length === 0 && skipped.length === 0 && filter !== 'done' ? (
           <div style={{textAlign:'center',padding:'48px 0'}}>
             <p style={{fontSize:32,marginBottom:10}}>✅</p>
             <p style={{fontSize:15,fontWeight:600,color:'#333',marginBottom:4}}>All caught up!</p>
@@ -411,23 +429,38 @@ export default function Today({ session }) {
           </div>
         ) : (
           <>
+            {(filter === 'all' || filter === 'attention') && needsAttn.length > 0 && (
+              <>
+                <div className="section-label">⚠ Needs attention ({needsAttn.length})</div>
+                {needsAttn.map(t => <TaskCard key={t.id} task={t} onClick={() => openTask(t)} />)}
+              </>
+            )}
+            {(filter === 'all' || filter === 'skipped') && skipped.length > 0 && (
+              <>
+                <div className="section-label">Skipped ({skipped.length})</div>
+                {skipped.map(t => <TaskCard key={t.id} task={t} onClick={() => openTask(t)} />)}
+              </>
+            )}
             {(filter === 'all' || filter === 'overdue') && overdue.length > 0 && (
               <>
-                <div className="section-label">Overdue</div>
+                <div className="section-label">Overdue ({overdue.length})</div>
                 {overdue.map(t => <TaskCard key={t.id} task={t} onClick={() => openTask(t)} />)}
               </>
             )}
             {(filter === 'all' || filter === 'pending') && pending.length > 0 && (
               <>
-                <div className="section-label">Today</div>
+                <div className="section-label">Today ({pending.length})</div>
                 {pending.map(t => <TaskCard key={t.id} task={t} onClick={() => openTask(t)} />)}
               </>
             )}
             {filter === 'done' && done.length > 0 && (
               <>
-                <div className="section-label">Completed today ({done.length})</div>
+                <div className="section-label">Completed ({done.length})</div>
                 {done.map(t => <TaskCard key={t.id} task={t} onClick={() => openTask(t)} />)}
               </>
+            )}
+            {filter === 'done' && done.length === 0 && (
+              <div style={{textAlign:'center',padding:'32px 0',color:'#888',fontSize:13}}>No completed tasks in this period.</div>
             )}
           </>
         )}
