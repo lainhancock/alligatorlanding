@@ -522,8 +522,8 @@ function TaskCard({ task, onClick }) {
         </div>
         <div style={{fontSize:11,color:'#666',marginTop:2}}>
           {status === 'completed' ? <span className="badge badge-done">Done</span>
-          : t.status === 'needs_attention' ? <span className="badge badge-warn">⚠ Needs attention</span>
-          : t.status === 'skipped' ? <span className="badge" style={{background:'#f0f0f0',color:'#888'}}>Skipped</span>
+          : task.status === 'needs_attention' ? <span className="badge badge-warn">⚠ Needs attention</span>
+          : task.status === 'skipped' ? <span className="badge" style={{background:'#f0f0f0',color:'#888'}}>Skipped</span>
           : status === 'overdue' ? <span className="badge badge-overdue">Overdue</span>
           : <span className="badge badge-due">Due</span>}
           {task.task?.asset?.name ? ` · ${task.task.asset.name}` : ''}
