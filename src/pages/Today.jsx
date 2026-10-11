@@ -59,7 +59,7 @@ export default function Today({ session }) {
     // Filter to today and past, dedupe overdue to show only most recent per task
     const filtered = occurrences.filter(o => o.due_date <= today)
     const todayOccs = filtered.filter(o => o.due_date === today)
-    const pastOccs = filtered.filter(o => o.due_date < today && o.status === 'pending')
+    const pastOccs = filtered.filter(o => o.due_date < today && (o.status === 'pending' || o.status === 'needs_attention'))
 
     // Keep only most recent overdue occurrence per task
     const seenTasks = new Set()
@@ -212,8 +212,8 @@ export default function Today({ session }) {
   const today = new Date(new Date().toLocaleString('en-US', {timeZone: 'America/Chicago'})).toLocaleDateString('en-CA')
   // due_date may come back as full timestamp — normalize to date string
   const normalize = (d) => d ? d.substring(0, 10) : ''
-  const overdue = tasks.filter(t => t.status !== 'completed' && normalize(t.due_date) < today)
-  const pending = tasks.filter(t => t.status === 'pending' && normalize(t.due_date) <= today)
+  const overdue = tasks.filter(t => t.status !== 'completed' && t.status !== 'skipped' && normalize(t.due_date) < today)
+  const pending = tasks.filter(t => (t.status === 'pending' || t.status === 'needs_attention') && normalize(t.due_date) <= today)
   const done = tasks.filter(t => t.status === 'completed')
   const total = tasks.length
   const doneCount = done.length
@@ -271,7 +271,11 @@ export default function Today({ session }) {
               setSelected(null); loadTasks()
             }}>⚠ Needs attention</button>
             <button className="btn btn-secondary" onClick={async () => {
-              await supabase.from('task_occurrences').update({status:'skipped'}).eq('id', selected.id)
+              const note = window.prompt('Reason for skipping (optional):')
+              await supabase.from('task_occurrences').update({
+                status:'skipped',
+                skip_note: note || null
+              }).eq('id', selected.id)
               setSelected(null); loadTasks()
             }}>Skip with note</button>
           </>
@@ -518,6 +522,8 @@ function TaskCard({ task, onClick }) {
         </div>
         <div style={{fontSize:11,color:'#666',marginTop:2}}>
           {status === 'completed' ? <span className="badge badge-done">Done</span>
+          : t.status === 'needs_attention' ? <span className="badge badge-warn">⚠ Needs attention</span>
+          : t.status === 'skipped' ? <span className="badge" style={{background:'#f0f0f0',color:'#888'}}>Skipped</span>
           : status === 'overdue' ? <span className="badge badge-overdue">Overdue</span>
           : <span className="badge badge-due">Due</span>}
           {task.task?.asset?.name ? ` · ${task.task.asset.name}` : ''}
