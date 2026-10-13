@@ -507,8 +507,14 @@ export default function Tracker({ session }) {
               }}
               onChange={e => {
                 if (e.target.files && e.target.files.length > 0) {
-                  setPendingFiles(prev => [...prev, ...Array.from(e.target.files)])
+                  const newFiles = Array.from(e.target.files)
+                  setPendingFiles(prev => {
+                    const existingNames = new Set(prev.map(f => f.name + f.size))
+                    const unique = newFiles.filter(f => !existingNames.has(f.name + f.size))
+                    return [...prev, ...unique]
+                  })
                 }
+                e.target.value = ''
               }}
             />
           </div>
