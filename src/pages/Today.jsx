@@ -480,8 +480,13 @@ export default function Tracker({ session }) {
             fontSize:12,cursor:'pointer',textAlign:'center'
           }}>
             {pendingFiles.length>0 ? `✓ ${pendingFiles.length} file${pendingFiles.length!==1?'s':''} selected — tap to add more` : '📎 Attach photo / video (optional)'}
-            <input type="file" accept="image/*,video/*" multiple style={{display:'none'}}
-              onChange={e => { setPendingFiles(prev => [...prev, ...Array.from(e.target.files)]); e.target.value='' }}/>
+            <input type="file" accept="image/*,video/*" style={{display:'none'}}
+              onChange={e => {
+                if (e.target.files && e.target.files.length > 0) {
+                  setPendingFiles(prev => [...prev, ...Array.from(e.target.files)])
+                }
+                e.target.value=''
+              }}/>
           </label>
         </div>
         <button className="btn btn-primary" onClick={saveWorkOrder} disabled={!woForm.title.trim()||uploading||savingWO}>
