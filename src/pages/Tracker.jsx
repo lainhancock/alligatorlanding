@@ -332,6 +332,25 @@ export default function Tracker({ session }) {
     }
 
     setPendingFiles([])
+    // upload pending files after WO created
+    if (woId && pendingFiles.length > 0) {
+      setUploading(true)
+      for (const file of pendingFiles) {
+        const ext = file.name.split('.').pop()
+        const path = `work_order/${woId}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
+        const { error } = await supabase.storage.from('tracker-media').upload(path, file, { contentType: file.type })
+        if (!error) {
+          await supabase.from('tracker_media').insert({
+            storage_path: path, file_name: file.name,
+            file_type: file.type.startsWith('video/') ? 'video' : 'image',
+            mime_type: file.type, entity_type: 'work_order', entity_id: woId,
+            uploaded_by: session.user.id
+          })
+        }
+      }
+      setUploading(false)
+    }
+    setPendingFiles([])
     setSavingWO(false)
     resetWOForm()
     setView('list')
@@ -459,31 +478,41 @@ export default function Tracker({ session }) {
           </div>
         </div>
         {/* Photo/video upload */}
-        <div style={{marginBottom:12}}>
-          <label className="form-label">Attach photos / videos</label>
-          <input ref={woFileRef} type="file" accept="image/*,video/*" multiple style={{display:'none'}}
-            onChange={e => { setPendingFiles(prev => [...prev, ...Array.from(e.target.files)]); e.target.value='' }}/>
-          {pendingFiles.length > 0 && (
-            <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:6,marginBottom:8}}>
-              {pendingFiles.map((f,i) => (
-                <div key={i} style={{aspectRatio:'1',borderRadius:8,background:'#EAF3DE',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:4,position:'relative'}}>
-                  <span style={{fontSize:20}}>{f.type.startsWith('video/')?'🎥':'📷'}</span>
-                  <span style={{fontSize:9,color:'#3B6D11',padding:'0 4px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:'100%'}}>{f.name}</span>
-                  <button onClick={()=>setPendingFiles(prev=>prev.filter((_,j)=>j!==i))} style={{position:'absolute',top:2,right:2,width:16,height:16,borderRadius:'50%',border:'none',background:'#A32D2D',color:'#fff',fontSize:9,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>×</button>
-                </div>
-              ))}
-            </div>
-          )}
-          <button onClick={() => woFileRef.current.click()} style={{
-            width:'100%',padding:10,borderRadius:8,
-            border:`1.5px dashed ${pendingFiles.length>0?'#3B6D11':'#ccc'}`,
-            background:pendingFiles.length>0?'#EAF3DE':'none',
-            color:pendingFiles.length>0?'#3B6D11':'#888',
-            fontSize:12,cursor:'pointer',fontFamily:'inherit'
-          }}>
-            {pendingFiles.length>0 ? `✓ ${pendingFiles.length} file${pendingFiles.length!==1?'s':''} selected — tap to add more` : '📎 Attach photo / video (optional)'}
-          </button>
-        </div>
+        {isEditing && selectedWO ? (
+          <div style={{marginBottom:12}}>
+            <label className="form-label">Photos / videos</label>
+            <MediaPanel entityType="work_order" entityId={selectedWO.id} session={session}/>
+          </div>
+        ) : (
+          <div style={{marginBottom:12}}>
+            <label className="form-label">Attach photos / videos</label>
+            {pendingFiles.length > 0 && (
+              <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:6,marginBottom:8}}>
+                {pendingFiles.map((f,i) => (
+                  <div key={i} style={{aspectRatio:'1',borderRadius:8,background:'#EAF3DE',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:4,position:'relative'}}>
+                    <span style={{fontSize:20}}>{f.type.startsWith('video/')?'🎥':'📷'}</span>
+                    <span style={{fontSize:9,color:'#3B6D11',padding:'0 4px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:'100%'}}>{f.name}</span>
+                    <button onClick={()=>setPendingFiles(prev=>prev.filter((_,j)=>j!==i))} style={{position:'absolute',top:2,right:2,width:16,height:16,borderRadius:'50%',border:'none',background:'#A32D2D',color:'#fff',fontSize:9,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>×</button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <input
+              type="file"
+              accept="image/*,video/*"
+              style={{
+                display:'block', width:'100%', padding:10, borderRadius:8,
+                border:'1.5px dashed #ccc', background:'#fafafa',
+                fontSize:12, color:'#555', boxSizing:'border-box'
+              }}
+              onChange={e => {
+                if (e.target.files && e.target.files.length > 0) {
+                  setPendingFiles(prev => [...prev, ...Array.from(e.target.files)])
+                }
+              }}
+            />
+          </div>
+        )}
         <button className="btn btn-primary" onClick={saveWorkOrder} disabled={!woForm.title.trim()||uploading||savingWO}>
           {uploading ? '⏳ Uploading…' : isEditing ? 'Save changes' : 'Create work order'}
         </button>
