@@ -11,17 +11,18 @@ const BOATS = [
 ]
 const BOAT_PREP = ['Fuel up','Check battery','Check drain plug','Load safety gear']
 const BLINDS = [
-  { id: 'nr', name: 'North ridge', type: 'box' },
-  { id: 'cb', name: 'Creek bend', type: 'box' },
-  { id: 'sp', name: 'South pasture', type: 'box' },
-  { id: 'wo', name: 'West oak', type: 'bow' },
-  { id: 'ph', name: 'Pine hollow', type: 'bow' },
-  { id: 'lv', name: 'Lake view', type: 'box' },
-  { id: 'bp', name: 'Back pasture', type: 'bow' },
-  { id: 'ec', name: 'East cedar', type: 'box' },
-  { id: 'rr', name: 'River run', type: 'bow' },
-  { id: 'ms', name: 'Mesquite stand', type: 'box' },
-  { id: 'hl', name: 'Hill top', type: 'bow' },
+  { id: 'sb',  name: 'Shop box blind',              type: 'box' },
+  { id: 'bp',  name: 'Back pond combo blind',        type: 'combo' },
+  { id: 'dsb', name: 'Duck slough box blind',        type: 'box' },
+  { id: 'cab', name: 'Cabin combo blind',            type: 'combo' },
+  { id: 'mnc', name: 'Minton north combo blind',     type: 'combo' },
+  { id: 'meb', name: 'Minton east box blind',        type: 'box' },
+  { id: 'msb', name: 'Minton south box blind',       type: 'box' },
+  { id: 'mhc', name: 'Minton hill combo blind',      type: 'combo' },
+  { id: 'mwc', name: 'Minton west combo blind',      type: 'combo' },
+  { id: 'mpl', name: 'Minton power line box blind',  type: 'box' },
+  { id: 'bbd', name: 'Bai Boundary duck blind',      type: 'duck' },
+  { id: 'dsd', name: 'Duck slough duck blind',       type: 'duck' },
 ]
 const UTVS = [
   { id: 'rev', name: 'Ranger EV' },
@@ -29,7 +30,7 @@ const UTVS = [
   { id: 'h2', name: 'Honda 2-seater' },
   { id: 'h6', name: 'Honda 6-seater' },
   { id: 'ca', name: 'Can-Am' },
-  { id: 'tt', name: 'Toyota Tundra' },
+  { id: 'tt', name: 'Ranch Truck' },
 ]
 const STAGING = ['Main house','Hangar','Tiny House 2','OG Tiny House','Shop']
 const RVS = [
