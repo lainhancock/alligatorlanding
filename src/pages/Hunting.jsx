@@ -68,8 +68,46 @@ export default function Hunting({ session }) {
   const boxBlinds = blinds.filter(b => b.blind_type === 'box')
   const bowBlinds = blinds.filter(b => b.blind_type === 'bow')
 
+  async function updateBlindStatus(id, status, notes) {
+    await supabase.from('hunting_blinds').update({ status, notes }).eq('id', id)
+    setSelected(null)
+    loadAll()
+  }
+
+  const [blindNote, setBlindNote] = useState('')
+  const [blindStatus, setBlindStatus] = useState('ok')
+
   return (
     <div>
+      {selected && tab === 'blinds' && (
+        <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',flexDirection:'column',justifyContent:'flex-end'}} onClick={() => setSelected(null)}>
+          <div style={{background:'#fff',borderRadius:'16px 16px 0 0',padding:20}} onClick={e=>e.stopPropagation()}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+              <div style={{fontSize:15,fontWeight:600}}>{selected.name}</div>
+              <button onClick={() => setSelected(null)} style={{background:'#f0f0f0',border:'none',borderRadius:20,padding:'4px 12px',fontSize:12,cursor:'pointer'}}>Close</button>
+            </div>
+            <div style={{fontSize:12,color:'#888',marginBottom:12}}>Update blind status</div>
+            <div style={{display:'flex',gap:8,marginBottom:12}}>
+              {['ok','warn'].map(s => (
+                <button key={s} onClick={() => setBlindStatus(s)} style={{
+                  flex:1,padding:10,borderRadius:8,border:`1.5px solid ${blindStatus===s?(s==='ok'?'#3B6D11':'#854F0B'):'#ddd'}`,
+                  background:blindStatus===s?(s==='ok'?'#EAF3DE':'#FAEEDA'):'none',
+                  color:blindStatus===s?(s==='ok'?'#3B6D11':'#854F0B'):'#666',
+                  fontSize:12,cursor:'pointer',fontFamily:'inherit',fontWeight:blindStatus===s?600:400
+                }}>{s==='ok'?'✓ Ready':'⚠ Needs attention'}</button>
+              ))}
+            </div>
+            <textarea value={blindNote} onChange={e=>setBlindNote(e.target.value)}
+              placeholder="Notes (optional)…"
+              style={{width:'100%',padding:10,borderRadius:8,border:'0.5px solid #ddd',fontSize:13,fontFamily:'inherit',resize:'none',boxSizing:'border-box',marginBottom:12}}
+              rows={3}/>
+            <button onClick={() => updateBlindStatus(selected.id, blindStatus, blindNote)}
+              style={{width:'100%',padding:12,borderRadius:8,background:'#3D2008',color:'#fff',border:'none',fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'inherit'}}>
+              Save status
+            </button>
+          </div>
+        </div>
+      )}
       <div className="topbar" style={{background:'#3D2008'}}>
         <h1>Hunting Management</h1>
         <p>Alligator Landing</p>
@@ -94,7 +132,7 @@ export default function Hunting({ session }) {
               <div className="stat-card" style={{textAlign:'center'}}><div className="stat-num" style={{color:'#854F0B'}}>{blinds.filter(b=>b.status==='warn').length}</div><div className="stat-lbl">Attn.</div></div>
             </div>
             {loading ? <p style={{color:'#888',fontSize:13}}>Loading…</p> : blinds.map(b => (
-              <div key={b.id} className="task-card" onClick={() => setSelected(b)}>
+              <div key={b.id} className="task-card" onClick={() => { setSelected(b); setBlindStatus(b.status||'ok'); setBlindNote(b.notes||'') }}>
                 <div style={{width:36,height:36,borderRadius:8,background:b.blind_type==='box'?'#FDF5EE':'#EEF2FF',color:b.blind_type==='box'?'#5C3A1E':'#3730A3',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0}}>
                   {b.blind_type==='box'?'🚪':'🌲'}
                 </div>
