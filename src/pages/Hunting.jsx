@@ -69,11 +69,12 @@ export default function Hunting({ session }) {
   const bowBlinds = blinds.filter(b => b.blind_type === 'bow')
 
   async function updateBlindStatus(id, status, notes) {
-    await supabase.from('hunting_blinds').update({ 
+    const { error } = await supabase.from('hunting_blinds').update({ 
       status, 
       notes,
       last_checked: new Date().toISOString().slice(0, 10)
     }).eq('id', id)
+    if (error) { alert('Error updating blind: ' + error.message); return }
     setSelected(null)
     loadAll()
   }
