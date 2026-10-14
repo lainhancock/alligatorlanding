@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import { notifyEventCreated } from '../lib/sms'
+import { notifyEventCreated, sendSMS } from '../lib/sms'
 import { format } from 'date-fns'
 
 const STRUCTURES = ['Main house','Lake house','OG Tiny House','Tiny House 2','Hangar','RO Shed','Equipment Shed']
@@ -76,6 +76,19 @@ async function alertCrew(eventName, eventDate, eventType) {
 }
 
 // ─────────────────────────────────────────────────────────────
+
+async function notifyEventCancelled(supabase, eventName, eventDate) {
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('phone, full_name')
+    .in('full_name', ['Lain Hancock', 'Clare Bambury', 'Trace', 'Scott Holcomb'])
+    .not('phone', 'is', null)
+  const dateStr = eventDate ? new Date(eventDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''
+  const msg = `Alligator Landing: Event CANCELLED — "${eventName}"${dateStr ? ` scheduled for ${dateStr}` : ''}. Reply STOP to opt out.`
+  for (const p of profiles || []) {
+    await sendSMS(p.phone, msg)
+  }
+}
 
 export default function Events({ session }) {
   const [events, setEvents] = useState([])
