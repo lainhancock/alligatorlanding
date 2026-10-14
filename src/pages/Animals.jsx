@@ -337,10 +337,12 @@ export default function Animals({ session }) {
           <input className="form-input" value={form.tag_number} onChange={e=>setForm({...form,tag_number:e.target.value})} placeholder="e.g. WH-001"/>
         </div>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
-          <div className="form-group" style={{marginBottom:0}}>
-            <label className="form-label">Est. date of birth</label>
-            <input className="form-input" type="date" value={form.estimated_dob} onChange={e=>setForm({...form,estimated_dob:e.target.value})}/>
-          </div>
+          {form.acquisition_type !== 'Born on property' && (
+            <div className="form-group" style={{marginBottom:0}}>
+              <label className="form-label">Est. date of birth</label>
+              <input className="form-input" type="date" value={form.estimated_dob} onChange={e=>setForm({...form,estimated_dob:e.target.value})}/>
+            </div>
+          )}
           <div className="form-group" style={{marginBottom:0}}>
             <label className="form-label">Acquisition type</label>
             <select className="form-input" value={form.acquisition_type} onChange={e=>setForm({...form,acquisition_type:e.target.value})}>
@@ -368,8 +370,8 @@ export default function Animals({ session }) {
         )}
         {form.acquisition_type === 'Born on property' && (
           <div className="form-group">
-            <label className="form-label">Birth date</label>
-            <input className="form-input" type="date" value={form.acquisition_date} onChange={e=>setForm({...form,acquisition_date:e.target.value})}/>
+            <label className="form-label">Est. date of birth</label>
+            <input className="form-input" type="date" value={form.estimated_dob} onChange={e=>setForm({...form,estimated_dob:e.target.value})}/>
           </div>
         )}
         <div className="form-group">
