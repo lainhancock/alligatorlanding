@@ -69,10 +69,11 @@ export default function Hunting({ session }) {
   const bowBlinds = blinds.filter(b => b.blind_type === 'bow')
 
   async function updateBlindStatus(id, status, notes) {
+    const today = new Date().toISOString().slice(0, 10)
     const { error } = await supabase.from('hunting_blinds').update({ 
       status, 
       notes,
-      last_checked: new Date().toISOString().slice(0, 10)
+      last_checked: today
     }).eq('id', id)
     if (error) { alert('Error updating blind: ' + error.message); return }
     setSelected(null)
@@ -147,7 +148,7 @@ export default function Hunting({ session }) {
                     <span style={{background:b.blind_type==='box'?'#FDF5EE':'#EEF2FF',color:b.blind_type==='box'?'#5C3A1E':'#3730A3',padding:'1px 6px',borderRadius:10,fontSize:9,fontWeight:500}}>
                       {b.blind_type==='box'?'Box':'Bow'}
                     </span>
-                    {' '}Last: {b.last_inspection||'Never'}
+                    {' '}Last: {b.last_checked||'Never'}
                   </div>
                 </div>
                 <span className={`badge ${b.status==='ok'?'badge-done':'badge-warn'}`}>
